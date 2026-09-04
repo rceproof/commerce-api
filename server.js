@@ -1,23 +1,26 @@
-const http = require('http');
+const express = require("express");
+const app = express();
 
-const server = http.createServer((req, res) => {
-  console.log("요청 들어온 경로:", req.url);
-
-  if (req.url === "/") {
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("환영합니다! Commerce API 입니다");
-  } else if (req.url === "/products") {
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("상품 목록입니다");
-  } else if (req.url === "/orders") {
-    res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("주문 목록입니다");
-  } else {
-    res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end("페이지를 찾을 수 없습니다");
-  }
+app.get("/", (req, res) => {
+  res.send("환영합니다! Commerce API 입니다");
 });
 
-server.listen(3000, () => {
+app.get("/products", (req, res) => {
+  res.json({
+    products: [
+      { id: 1, name: "노트북", price: 1200000 },
+      { id: 2, name: "마우스", price: 25000 },
+    ],
+  });
+});
+app.get("/orders", (req, res) => {
+  res.send("주문 목록입니다");
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: "요청하신 경로를 찾을 수 없습니다" });
+});
+
+app.listen(3000, () => {
   console.log('서버 실행중 http://localhost:3000')
 });

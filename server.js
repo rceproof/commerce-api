@@ -1,6 +1,8 @@
 const express = require("express");
 const app = express();
 
+app.use(express.json());
+
 app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
 });
@@ -52,8 +54,26 @@ app.get("/users/:userId/orders/:orderId", (req, res) => {
   }
 });
 
-app.get("/orders", (req, res) => {
-  res.send("주문 목록입니다");
+const orders = [];
+let nextOrderId = 1;
+
+app.post("/orders", (req, res) => {
+  const { userId, product, quantity } = req.body;
+
+  if (!userId || !product || !quantity) {
+    return res.status(400).json({ error: "userId, product, quantity는 필수입니다" });
+  }
+
+  const order = {
+    orderId: nextOrderId++,
+    userId,
+    product,
+    quantity,
+    createdAt: new Date(),
+  };
+
+  orders.push(order);
+  res.status(201).json(order);
 });
 
 app.use((req, res) => {

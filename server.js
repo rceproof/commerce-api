@@ -74,6 +74,22 @@ app.post("/orders", (req, res) => {
   res.status(201).json(order);
 });
 
+app.delete("/orders/:id", (req, res) => {
+  const orderId = Number(req.params.id);
+
+  const index = orders.findIndex((o) => o.orderId === orderId);
+
+  if (index === -1){
+    res.status(404).json({ error: "주문을 찾을 수 없습니다."});
+  }
+
+  orders.splice(index, 1);
+
+  res.status(204).send();
+
+});
+
+
 app.use((req, res) => {
   res.status(404).json({ error: "요청하신 경로를 찾을 수 없습니다" });
 });

@@ -74,6 +74,31 @@ app.post("/orders", (req, res) => {
   res.status(201).json(order);
 });
 
+app.put("/orders/:id", (req, res) => {
+  const orderId = Number(req.params.id);
+  const { userId, product, quantity } = req.body;
+
+  if (!userId || !product || !quantity) {
+    return res.status(400).json({ error: "userId, product, quantity는 필수입니다" });
+  }
+
+  const index = orders.findIndex((o) => o.orderId === orderId);
+
+  if (index === -1) {
+    return res.status(404).json({ error: "주문을 찾을 수 없습니다" });
+  }
+
+  orders[index] = {
+    ...orders[index],
+    userId,
+    product,
+    quantity,
+  };
+
+  res.json(orders[index]);
+});
+
+
 app.delete("/orders/:id", (req, res) => {
   const orderId = Number(req.params.id);
 

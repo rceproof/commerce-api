@@ -9,6 +9,13 @@
 - Express
 - PostgreSQL
 
+## 개발 환경
+- 런타임: Node.js (Express)
+- 데이터베이스: PostgreSQL
+- API 테스트: Postman
+- 버전 관리: Git / GitHub
+- 의존성 보안: npm audit, Dependabot
+
 ## 실행 방법
 
 ​```

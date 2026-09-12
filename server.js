@@ -4,8 +4,6 @@ const pool = require("./db");
 
 app.use(express.json());
 
-const orders = [];
-let nextOrderId = 1;
 
 app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
@@ -84,7 +82,7 @@ app.post("/orders", async (req, res) => {
   }
 });
 
-app.put("/orders/:id", (req, res) => {
+app.put("/orders/:id", async (req, res) => {
   const orderId = Number(req.params.id);
   const { userId, product, quantity } = req.body;
 
@@ -92,36 +90,39 @@ app.put("/orders/:id", (req, res) => {
     return res.status(400).json({ error: "userId, product, quantity는 필수입니다" });
   }
 
-  const index = orders.findIndex((o) => o.orderId === orderId);
+  try {
+    const result = await pool.query(
+      "UPDATE orders SET user_id = $1, product = $2, quantity = $3 WHERE order_id = $4 RETURNING *",
+      [userId, product, quantity, orderId]
+    );
 
-  if (index === -1) {
-    return res.status(404).json({ error: "주문을 찾을 수 없습니다" });
-  }
-
-  orders[index] = {
-    ...orders[index],
-    userId,
-    product,
-    quantity,
-  };
-
-  res.json(orders[index]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "주문을 찾을 수 없습니다"});
+    }
+    res.json(result.rows[0]);
+    } catch(err) {
+      res.status(500).json({ error: "서버 오류가 발생했습니다"});
+    }
 });
 
 
-app.delete("/orders/:id", (req, res) => {
+app.delete("/orders/:id", async (req, res) => {
   const orderId = Number(req.params.id);
 
-  const index = orders.findIndex((o) => o.orderId === orderId);
+  try {
+    const result = await pool.query(
+      "DELETE FROM orders WHERE order_id = $1 RETURNING *",
+      [orderId]
+    );
 
-  if (index === -1){
-    res.status(404).json({ error: "주문을 찾을 수 없습니다."});
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "주문을 찾을 수 없습니다"});
+    }
+
+    res.status(204).send();
+  } catch(err) {
+    res.status(500).json({ error: "서버 오류가 발생했습니다."});
   }
-
-  orders.splice(index, 1);
-
-  res.status(204).send();
-
 });
 
 

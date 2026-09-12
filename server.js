@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const pool = require("./db");
 
 app.use(express.json());
 
@@ -36,42 +37,51 @@ app.get("/products/:id", (req, res) => {
   }
 });
 
-app.get("/users/:userId/orders/:orderId", (req, res) => {
+app.get("/users/:userId/orders/:orderId", async (req, res) => {
   const userId = Number(req.params.userId);
   const orderId = Number(req.params.orderId);
 
-  const order = orders.find(
-    (o) => o.userId === userId && o.orderId === orderId
-  );
+  try {
+    const result = await pool.query(
+      "SELECT * FROM orders WHERE order_id = $1 AND user_id = $2",
+      [orderId, userId]
+    );
 
-  if (order) {
-    res.json(order);
-  } else {
-    res.status(404).json({ error: "주문을 찾을 수 없습니다" });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "주문을 찾을 수 없습니다" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "서버 오류가 발생했습니다" });
   }
 });
 
-app.get("/orders", (req, res) => {
-  res.json(orders);
+app.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM orders ORDER BY order_id");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "서버 오류가 발생했습니다" });
+  }
 });
 
-app.post("/orders", (req, res) => {
+app.post("/orders", async (req, res) => {
   const { userId, product, quantity } = req.body;
 
   if (!userId || !product || !quantity) {
     return res.status(400).json({ error: "userId, product, quantity는 필수입니다" });
   }
 
-  const order = {
-    orderId: nextOrderId++,
-    userId,
-    product,
-    quantity,
-    createdAt: new Date(),
-  };
-
-  orders.push(order);
-  res.status(201).json(order);
+  try {
+    const result = await pool.query(
+      "INSERT INTO orders (user_id, product, quantity) VALUES ($1, $2, $3) RETURNING *",
+      [userId, product, quantity]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "서버 오류가 발생했습니다" });
+  }
 });
 
 app.put("/orders/:id", (req, res) => {

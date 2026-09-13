@@ -9,29 +9,28 @@ app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
 });
 
-app.get("/products", (req, res) => {
-  res.json({
-    products: [
-      { id: 1, name: "노트북", price: 1200000 },
-      { id: 2, name: "마우스", price: 25000 },
-    ],
-  });
+app.get("/products", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM products ORDER BY id");
+    res.json(result.rows);
+  } catch (err){
+    res.status(500).json({ error: "서버 오류가 발생했습니다"});
+  }
 });
 
-app.get("/products/:id", (req, res) => {
+app.get("/products/:id", async (req, res) => {
   const id = Number(req.params.id);
 
-  const products = [
-    { id: 1, name: "노트북", price: 1200000 },
-    { id: 2, name: "마우스", price: 25000 },
-  ];
+  try {
+    const result = await pool.query("SELECT * FROM products WHERE id = $1", [id]);
 
-  const product = products.find((p) => p.id === id);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "상품을 찾을 수 없습니다"});
+    }
 
-  if (product) {
-    res.json(product);
-  } else {
-    res.status(404).json({ error: "상품을 찾을 수 없습니다" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: "서버 오류가 발생했습니다."});
   }
 });
 

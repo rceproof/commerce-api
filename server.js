@@ -1,12 +1,37 @@
 const express = require("express");
 const app = express();
 const pool = require("./db");
+const bcrypt = require("bcrypt");
 
 app.use(express.json());
 
 
 app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
+});
+
+app.post("/signup", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return  res.status(400).json({ error: "email과 password는 필수입니다."}); 
+  }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const result = await pool.query(
+      "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email, created_at",
+      [email, hashedPassword]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "이미 가입된 이메일입니다"});
+    }
+    res.status(500).json({ error: "서버 오류가 발생했습니다"});
+  }
 });
 
 app.get("/products", async (req, res) => {

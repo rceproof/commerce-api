@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const pool = require("./db");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 app.use(express.json());
 
@@ -30,6 +31,39 @@ app.post("/signup", async (req, res) => {
     if (err.code === "23505") {
       return res.status(409).json({ error: "이미 가입된 이메일입니다"});
     }
+    res.status(500).json({ error: "서버 오류가 발생했습니다"});
+  }
+});
+
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "email과 password는 필수입니다"});
+  }
+
+  try {
+    const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    if(result.rows.length === 0) {
+      return res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다"});
+    }
+
+    const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다"});
+    }
+    const token = jwt.sign(
+      { userId: user.id, email: user.email},
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다"});
   }
 });

@@ -4,8 +4,12 @@ const pool = require("./db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-app.use(express.json());
+// 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
+// 응답 시간으로 계정 존재 여부가 노출되지 않게 함 
+const DUMMY_HASH = bcrypt.hashSync("dummy_password", 12);
 
+
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
@@ -44,15 +48,13 @@ app.post("/login", async (req, res) => {
 
   try {
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-
-    if(result.rows.length === 0) {
-      return res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다"});
-    }
-
     const user = result.rows[0];
-    const isMatch = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) {
+    // 이메일이 없어도 더미 해시로 compare를 돌려 응답 시간을 맞춤 (타이밍 공격 방어)
+    const hashToCompare = user ? user.password : DUMMY_HASH;
+    const isMatch = await bcrypt.compare(password, hashToCompare);
+
+    if (!user || !isMatch) {
       return res.status(401).json({ error: "이메일 또는 비밀번호가 올바르지 않습니다"});
     }
     const token = jwt.sign(

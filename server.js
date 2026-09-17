@@ -8,6 +8,22 @@ const jwt = require("jsonwebtoken");
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함 
 const DUMMY_HASH = bcrypt.hashSync("dummy_password", 12);
 
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if(!token) { 
+    return res.status(401).json({ error: " 인증 토큰이 필요합니다" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ["HS256"] });
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다"});
+  }
+}
 
 app.use(express.json());
 
@@ -68,6 +84,10 @@ app.post("/login", async (req, res) => {
     console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다"});
   }
+});
+
+app.get("/me", authenticateToken, (req, res) => {
+  res.json({ user: req.user });
 });
 
 app.get("/products", async (req, res) => {

@@ -148,17 +148,17 @@ app.get("/orders", authenticateToken, async (req, res) => {
   }
 });
 
-app.post("/orders", async (req, res) => {
-  const { userId, product, quantity } = req.body;
+app.post("/orders", authenticateToken, async (req, res) => {
+  const { product, quantity } = req.body;
 
-  if (!userId || !product || !quantity) {
-    return res.status(400).json({ error: "userId, product, quantity는 필수입니다" });
+  if (!product || !quantity) {
+    return res.status(400).json({ error: "product, quantity는 필수입니다" });
   }
 
   try {
     const result = await pool.query(
       "INSERT INTO orders (user_id, product, quantity) VALUES ($1, $2, $3) RETURNING *",
-      [userId, product, quantity]
+      [req.user.userId, product, quantity]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

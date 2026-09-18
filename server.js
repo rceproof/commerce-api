@@ -135,11 +135,15 @@ app.get("/users/:userId/orders/:orderId", async (req, res) => {
   }
 });
 
-app.get("/orders", async (req, res) => {
+app.get("/orders", authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM orders ORDER BY order_id");
+    // IDOR 방어: 조회 대상 userId를 검증된 토큰(req.user)에서만 가져옴 (클라이언트 입력 신뢰 X)
+    const result = await pool.query(
+      "SELECT * FROM orders WHERE user_id = $1 ORDER BY order_id",
+      [req.user.userId]);
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다" });
   }
 });

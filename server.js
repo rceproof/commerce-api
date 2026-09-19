@@ -193,16 +193,18 @@ app.put("/orders/:id", authenticateToken, async (req, res) => {
 });
 
 
-app.delete("/orders/:id", async (req, res) => {
+app.delete("/orders/:id", authenticateToken,async (req, res) => {
   const orderId = Number(req.params.id);
 
   try {
+    // IODR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
     const result = await pool.query(
-      "DELETE FROM orders WHERE order_id = $1 RETURNING *",
-      [orderId]
+      "DELETE FROM orders WHERE order_id = $1 AND user_id = $2 RETURNING *",
+      [orderId, req.user.userId]
     );
 
     if (result.rows.length === 0) {
+      // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
       return res.status(404).json({ error: "주문을 찾을 수 없습니다"});
     }
 

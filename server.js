@@ -4,6 +4,7 @@ const pool = require("./db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const rateLimit = require("express-rate-limit");
+const ms = require("ms");
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함 
@@ -27,7 +28,7 @@ function authenticateToken(req, res, next) {
 }
 
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15분 60초 1000밀리초
+  windowMs: ms("15m"), // 15분 60초 1000밀리초
   max: 5,                    // IP당 15분에 5회까지
   message: { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요" },
   standardHeaders: true,
@@ -35,7 +36,7 @@ const loginLimiter = rateLimit({
 });
 
 const signupLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1시간
+  windowMs: ms("1h"), // 1시간
   max: 10,                  // 1시간에 10회
   message: { error: "회원가입 시도가 너무 많습니다. 잠시 후 다시 시도해주세요" },
   standardHeaders: true,

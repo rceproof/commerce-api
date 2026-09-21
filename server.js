@@ -115,22 +115,24 @@ app.get("/products/:id", async (req, res) => {
   }
 });
 
-app.get("/users/:userId/orders/:orderId", async (req, res) => {
-  const userId = Number(req.params.userId);
-  const orderId = Number(req.params.orderId);
+app.get("/orders/:id", authenticateToken, async (req, res) => {
+  const orderId = Number(req.params.id);
 
   try {
+    // IDOR 방어: 본인 소유의 주문만 조회
     const result = await pool.query(
       "SELECT * FROM orders WHERE order_id = $1 AND user_id = $2",
-      [orderId, userId]
+      [orderId, req.user.userId]
     );
 
     if (result.rows.length === 0) {
+      // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
       return res.status(404).json({ error: "주문을 찾을 수 없습니다" });
     }
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "서버 오류가 발생했습니다" });
   }
 });

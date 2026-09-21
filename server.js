@@ -3,6 +3,7 @@ const app = express();
 const pool = require("./db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함 
@@ -24,6 +25,15 @@ function authenticateToken(req, res, next) {
     return res.status(403).json({ error: "유효하지 않은 토큰입니다"});
   }
 }
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분 60초 1000밀리초
+  max: 5,                    // IP당 15분에 5회까지
+  message: { error: "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 app.use(express.json());
 
@@ -55,7 +65,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-app.post("/login", async (req, res) => {
+app.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {

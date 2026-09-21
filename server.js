@@ -34,6 +34,14 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1시간
+  max: 10,                  // 1시간에 10회
+  message: { error: "회원가입 시도가 너무 많습니다. 잠시 후 다시 시도해주세요" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 
 app.use(express.json());
 
@@ -41,7 +49,7 @@ app.get("/", (req, res) => {
   res.send("환영합니다! Commerce API 입니다");
 });
 
-app.post("/signup", async (req, res) => {
+app.post("/signup", signupLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {

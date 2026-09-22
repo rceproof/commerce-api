@@ -53,14 +53,15 @@ app.get('/', (req, res) => {
 app.post(
   '/signup',
   signupLimiter,
-  body('email').isEmail().withMessage('올바른 이메일 형식이 아닙니다').normalizeEmail(), // email 검증+정규화
+  // 대소문자·공백 정규화로 중복 계정 방지
+  body('email').isEmail().withMessage('올바른 이메일 형식이 아닙니다').normalizeEmail(),
   body('password').isLength({ min: 8 }).withMessage('비밀번호는 8자 이상이여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
-    const { email, password } = req.body; // email은 normalizeEmail로 정규화된 값
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'email과 password는 필수입니다.' });
@@ -84,34 +85,40 @@ app.post(
   },
 );
 
-app.post('/login', loginLimiter, async (req, res) => {
-  const { email, password } = req.body;
+app.post(
+  '/login',
+  loginLimiter,
+  // 저장된 이메일이 정규화돼 있으므로 조회 이메일도 동일하게 정규화
+  body('email').normalizeEmail(),
+  async (req, res) => {
+    const { email, password } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'email과 password는 필수입니다' });
-  }
-
-  try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = result.rows[0];
-
-    // 이메일이 없어도 더미 해시로 compare를 돌려 응답 시간을 맞춤 (타이밍 공격 방어)
-    const hashToCompare = user ? user.password : DUMMY_HASH;
-    const isMatch = await bcrypt.compare(password, hashToCompare);
-
-    if (!user || !isMatch) {
-      return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email과 password는 필수입니다' });
     }
-    const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
 
-    res.json({ token });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+    try {
+      const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      const user = result.rows[0];
+
+      // 이메일이 없어도 더미 해시로 compare를 돌려 응답 시간을 맞춤 (타이밍 공격 방어)
+      const hashToCompare = user ? user.password : DUMMY_HASH;
+      const isMatch = await bcrypt.compare(password, hashToCompare);
+
+      if (!user || !isMatch) {
+        return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
+      }
+      const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, {
+        expiresIn: '1h',
+      });
+
+      res.json({ token });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
 
 app.get('/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });

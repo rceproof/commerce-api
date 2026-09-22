@@ -63,10 +63,6 @@ app.post(
     }
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email과 password는 필수입니다.' });
-    }
-
     try {
       const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -198,6 +194,7 @@ app.post('/orders', authenticateToken, async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다' });
   }
 });
@@ -245,6 +242,7 @@ app.delete('/orders/:id', authenticateToken, async (req, res) => {
 
     res.status(204).send();
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });

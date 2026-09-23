@@ -180,24 +180,31 @@ app.get('/orders', authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/orders', authenticateToken, async (req, res) => {
-  const { product, quantity } = req.body;
+app.post(
+  '/orders',
+  authenticateToken,
+  body('product').trim().notEmpty().withMessage('product는 필수입니다.'),
+  body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
-  if (!product || !quantity) {
-    return res.status(400).json({ error: 'product, quantity는 필수입니다' });
-  }
+    const { product, quantity } = req.body;
 
-  try {
-    const result = await pool.query(
-      'INSERT INTO orders (user_id, product, quantity) VALUES ($1, $2, $3) RETURNING *',
-      [req.user.userId, product, quantity],
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+    try {
+      const result = await pool.query(
+        'INSERT INTO orders (user_id, product, quantity) VALUES ($1, $2, $3) RETURNING *',
+        [req.user.userId, product, quantity],
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
 
 app.put('/orders/:id', authenticateToken, async (req, res) => {
   const orderId = Number(req.params.id);

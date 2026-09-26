@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const ms = require('ms');
 const { body, validationResult } = require('express-validator');
+const req = require('express/lib/request');
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
@@ -260,6 +261,42 @@ app.delete('/orders/:id', authenticateToken, async (req, res) => {
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
+
+app.post(
+  '/points/use',
+  authenticateToken,
+  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+    const { amount } = req.body;
+    const userId = req.user.userId;
+
+    try {
+      // 1. 현재 잔액 조회
+      const user = await pool.query('SELECT points FROM users WHERE id = $1', [userId]);
+      const currentPoints = user.rows[0].points;
+
+      // 2. 잔액 확인
+      if (currentPoints < amount) {
+        return res.status(400).json({ erros: '포인트가 부족합니다' });
+      }
+
+      // 3. 차감
+      const result = await pool.query(
+        'UPDATE users SET points = points - $1 WHERE id = $2 RETURNING points',
+        [amount, userId],
+      );
+
+      res.json({ points: result.rows[0].points });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
 
 app.use((req, res) => {
   res.status(404).json({ error: '요청하신 경로를 찾을 수 없습니다' });

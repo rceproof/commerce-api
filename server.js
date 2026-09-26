@@ -6,7 +6,6 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const ms = require('ms');
 const { body, validationResult } = require('express-validator');
-const req = require('express/lib/request');
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
@@ -17,7 +16,7 @@ function authenticateToken(req, res, next) {
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ error: ' 인증 토큰이 필요합니다' });
+    return res.status(401).json({ error: '인증 토큰이 필요합니다' });
   }
 
   try {
@@ -30,7 +29,7 @@ function authenticateToken(req, res, next) {
 }
 
 const loginLimiter = rateLimit({
-  windowMs: ms('15m'), // 15분 60초 1000밀리초
+  windowMs: ms('15m'), // 15분
   max: 5, // IP당 15분에 5회까지
   message: { error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요' },
   standardHeaders: true,
@@ -56,7 +55,7 @@ app.post(
   signupLimiter,
   // 대소문자·공백 정규화로 중복 계정 방지
   body('email').isEmail().withMessage('올바른 이메일 형식이 아닙니다').normalizeEmail(),
-  body('password').isLength({ min: 8 }).withMessage('비밀번호는 8자 이상이여야 합니다'),
+  body('password').isLength({ min: 8 }).withMessage('비밀번호는 8자 이상이어야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -126,6 +125,7 @@ app.get('/products', async (req, res) => {
     const result = await pool.query('SELECT * FROM products ORDER BY id');
     res.json(result.rows);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다' });
   }
 });
@@ -142,7 +142,7 @@ app.get('/products/:id', async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+    res.status(500).json({ error: '서버 오류가 발생했습니다' });
   }
 });
 
@@ -184,7 +184,7 @@ app.get('/orders', authenticateToken, async (req, res) => {
 app.post(
   '/orders',
   authenticateToken,
-  body('product').trim().notEmpty().withMessage('product는 필수입니다.'),
+  body('product').trim().notEmpty().withMessage('product는 필수입니다'),
   body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
@@ -211,7 +211,7 @@ app.put(
   '/orders/:id',
   authenticateToken,
   body('product').trim().notEmpty().withMessage('product는 필수입니다'),
-  body('quantity').isInt({ min: 1 }).withMessage('quantity는 1이상의 정수여야 합니다'),
+  body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -244,7 +244,7 @@ app.delete('/orders/:id', authenticateToken, async (req, res) => {
   const orderId = Number(req.params.id);
 
   try {
-    // IODR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
+    // IDOR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
     const result = await pool.query(
       'DELETE FROM orders WHERE order_id = $1 AND user_id = $2 RETURNING *',
       [orderId, req.user.userId],
@@ -258,7 +258,7 @@ app.delete('/orders/:id', authenticateToken, async (req, res) => {
     res.status(204).send();
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+    res.status(500).json({ error: '서버 오류가 발생했습니다' });
   }
 });
 
@@ -275,7 +275,7 @@ app.post(
     const userId = req.user.userId;
 
     try {
-      // 원자적 차감: 잔액 충분할 때만(WHERE points >= $1 차감 - 확인+차감을 한 쿼리로 (레이스컨디션 방어)
+      // 원자적 차감: 잔액 충분할 때만(WHERE points >= $1 차감 - 확인+차감을 한 쿼리로 (레이스컨디션 방어))
       const result = await pool.query(
         'UPDATE users SET points = points - $1 WHERE id = $2 AND points >= $1 RETURNING points',
         [amount, userId],

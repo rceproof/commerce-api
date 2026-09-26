@@ -275,20 +275,16 @@ app.post(
     const userId = req.user.userId;
 
     try {
-      // 1. 현재 잔액 조회
-      const user = await pool.query('SELECT points FROM users WHERE id = $1', [userId]);
-      const currentPoints = user.rows[0].points;
-
-      // 2. 잔액 확인
-      if (currentPoints < amount) {
-        return res.status(400).json({ erros: '포인트가 부족합니다' });
-      }
-
-      // 3. 차감
+      // 원자적 차감: 잔액 충분할 때만(WHERE points >= $1 차감 - 확인+차감을 한 쿼리로 (레이스컨디션 방어)
       const result = await pool.query(
-        'UPDATE users SET points = points - $1 WHERE id = $2 RETURNING points',
+        'UPDATE users SET points = points - $1 WHERE id = $2 AND points >= $1 RETURNING points',
         [amount, userId],
       );
+
+      if (result.rows.length === 0) {
+        // 0건 = 잔액 부족 (WHERE 조건에 안 맞아 아무것도 안 바뀜)
+        return res.status(400).json({ error: '포인트가 부족합니다' });
+      }
 
       res.json({ points: result.rows[0].points });
     } catch (err) {

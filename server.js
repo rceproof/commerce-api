@@ -184,7 +184,7 @@ app.get('/orders', authenticateToken, async (req, res) => {
 app.post(
   '/orders',
   authenticateToken,
-  body('product').trim().notEmpty().withMessage('product는 필수입니다'),
+  body('productId').isInt({ min: 1 }).withMessage('productId는 1이상의 정수여야 합니다'),
   body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
@@ -192,17 +192,50 @@ app.post(
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { product, quantity } = req.body;
+    const { productId, quantity } = req.body;
+    const userId = req.user.userId;
 
+    // 1. 상품 조회 (가격) - 단순 읽기라 트랜잭션 불필요
+    const productResult = await pool.query('SELECT name, price FROM products WHERE id = $1', [
+      productId,
+    ]);
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: '상품을 찾을 수 없습니다' });
+    }
+    const { name, price } = productResult.rows[0];
+    const total = price * quantity;
+
+    // 2. 결제 = 포인트 차감 + 주문 생성 (트랜잭션)
+    const client = await pool.connect();
     try {
-      const result = await pool.query(
-        'INSERT INTO orders (user_id, product, quantity) VALUES ($1, $2, $3) RETURNING *',
-        [req.user.userId, product, quantity],
+      await client.query('BEGIN');
+
+      // 포인트 행 잠금(FOR UPDATE) + 잔액 확인
+      const userResult = await client.query('SELECT points FROM users WHERE id = $1 FOR UPDATE', [
+        userId,
+      ]);
+      if (userResult.rows[0].points < total) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: '포인트가 부족합니다' });
+      }
+
+      //포인트 차감
+      await client.query('UPDATE users SET points = points - $1 WHERE id = $2', [total, userId]);
+
+      //주문 생성
+      const orderResult = await client.query(
+        'INSERT INTO orders (user_id, product_id, product, quantity, total) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [userId, productId, name, quantity, total],
       );
-      res.status(201).json(result.rows[0]);
+
+      await client.query('COMMIT');
+      res.status(201).json(orderResult.rows[0]);
     } catch (err) {
+      await client.query('ROLLBACK');
       console.error(err);
       res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    } finally {
+      client.release();
     }
   },
 );

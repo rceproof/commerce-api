@@ -240,6 +240,39 @@ app.post(
   },
 );
 
+app.post(
+  '/points/charge',
+  authenticateToken,
+  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { amount } = req.body;
+    const userId = req.user.userId;
+
+    try {
+      // 원자적 증가: 현재 포인트에 amount 더함 (동시 충전도 안전하게 누적)
+      const result = await pool.query(
+        'UPDATE users SET points = points + $1 WHERE id = $2 RETURNING points',
+        [amount, userId],
+      );
+
+      if (result.rows.length === 0) {
+        // 0건 = 해당 유저 없음 (인증됐으니 드물지만 방어)
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+      }
+
+      res.json({ points: result.rows[0].points });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
+
 app.put(
   '/orders/:id',
   authenticateToken,

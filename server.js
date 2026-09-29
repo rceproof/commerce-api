@@ -5,7 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const ms = require('ms');
-const { body, validationResult } = require('express-validator');
+const { body, param, validationResult } = require('express-validator');
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
@@ -130,43 +130,63 @@ app.get('/products', async (req, res) => {
   }
 });
 
-app.get('/products/:id', async (req, res) => {
-  const id = Number(req.params.id);
-
-  try {
-    const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: '상품을 찾을 수 없습니다' });
+app.get(
+  '/products/:id',
+  param('id').isInt({ min: 1 }).withMessage('id는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+    const id = Number(req.params.id);
 
-app.get('/orders/:id', authenticateToken, async (req, res) => {
-  const orderId = Number(req.params.id);
+    try {
+      const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
 
-  try {
-    // IDOR 방어: 본인 소유의 주문만 조회
-    const result = await pool.query('SELECT * FROM orders WHERE order_id = $1 AND user_id = $2', [
-      orderId,
-      req.user.userId,
-    ]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: '상품을 찾을 수 없습니다' });
+      }
 
-    if (result.rows.length === 0) {
-      // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
-      return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
+
+app.get(
+  '/orders/:id',
+  authenticateToken,
+  param('id').isInt({ min: 1 }).withMessage('id는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+    const orderId = Number(req.params.id);
+
+    try {
+      // IDOR 방어: 본인 소유의 주문만 조회
+      const result = await pool.query('SELECT * FROM orders WHERE order_id = $1 AND user_id = $2', [
+        orderId,
+        req.user.userId,
+      ]);
+
+      if (result.rows.length === 0) {
+        // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
+        return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+      }
+
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
 
 app.get('/orders', authenticateToken, async (req, res) => {
   try {
@@ -184,7 +204,7 @@ app.get('/orders', authenticateToken, async (req, res) => {
 app.post(
   '/orders',
   authenticateToken,
-  body('productId').isInt({ min: 1 }).withMessage('productId는 1이상의 정수여야 합니다'),
+  body('productId').isInt({ min: 1 }).withMessage('productId는 1 이상의 정수여야 합니다'),
   body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
@@ -306,27 +326,37 @@ app.put(
   },
 );
 
-app.delete('/orders/:id', authenticateToken, async (req, res) => {
-  const orderId = Number(req.params.id);
-
-  try {
-    // IDOR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
-    const result = await pool.query(
-      'DELETE FROM orders WHERE order_id = $1 AND user_id = $2 RETURNING *',
-      [orderId, req.user.userId],
-    );
-
-    if (result.rows.length === 0) {
-      // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
-      return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+app.delete(
+  '/orders/:id',
+  authenticateToken,
+  param('id').isInt({ min: 1 }).withMessage('id는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
 
-    res.status(204).send();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+    const orderId = Number(req.params.id);
+
+    try {
+      // IDOR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
+      const result = await pool.query(
+        'DELETE FROM orders WHERE order_id = $1 AND user_id = $2 RETURNING *',
+        [orderId, req.user.userId],
+      );
+
+      if (result.rows.length === 0) {
+        // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
+        return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+      }
+
+      res.status(204).send();
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
 
 app.post(
   '/points/use',

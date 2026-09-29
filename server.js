@@ -85,13 +85,15 @@ app.post(
   '/login',
   loginLimiter,
   // 저장된 이메일이 정규화돼 있으므로 조회 이메일도 동일하게 정규화
-  body('email').normalizeEmail(),
+  body('email').notEmpty().withMessage('email은 필수입니다').normalizeEmail(),
+  body('password').notEmpty().withMessage('password는 필수입니다'),
   async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'email과 password는 필수입니다' });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
     }
+
+    const { email, password } = req.body;
 
     try {
       const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -156,6 +158,19 @@ app.get(
   },
 );
 
+app.get('/orders', authenticateToken, async (req, res) => {
+  try {
+    // IDOR 방어: 조회 대상 userId를 검증된 토큰(req.user)에서만 가져옴 (클라이언트 입력 신뢰 X)
+    const result = await pool.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY order_id', [
+      req.user.userId,
+    ]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  }
+});
+
 app.get(
   '/orders/:id',
   authenticateToken,
@@ -187,19 +202,6 @@ app.get(
     }
   },
 );
-
-app.get('/orders', authenticateToken, async (req, res) => {
-  try {
-    // IDOR 방어: 조회 대상 userId를 검증된 토큰(req.user)에서만 가져옴 (클라이언트 입력 신뢰 X)
-    const result = await pool.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY order_id', [
-      req.user.userId,
-    ]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
 
 app.post(
   '/orders',
@@ -256,39 +258,6 @@ app.post(
       res.status(500).json({ error: '서버 오류가 발생했습니다' });
     } finally {
       client.release();
-    }
-  },
-);
-
-app.post(
-  '/points/charge',
-  authenticateToken,
-  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { amount } = req.body;
-    const userId = req.user.userId;
-
-    try {
-      // 원자적 증가: 현재 포인트에 amount 더함 (동시 충전도 안전하게 누적)
-      const result = await pool.query(
-        'UPDATE users SET points = points + $1 WHERE id = $2 RETURNING points',
-        [amount, userId],
-      );
-
-      if (result.rows.length === 0) {
-        // 0건 = 해당 유저 없음 (인증됐으니 드물지만 방어)
-        return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
-      }
-
-      res.json({ points: result.rows[0].points });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: '서버 오류가 발생했습니다' });
     }
   },
 );
@@ -351,6 +320,39 @@ app.delete(
       }
 
       res.status(204).send();
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    }
+  },
+);
+
+app.post(
+  '/points/charge',
+  authenticateToken,
+  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { amount } = req.body;
+    const userId = req.user.userId;
+
+    try {
+      // 원자적 증가: 현재 포인트에 amount 더함 (동시 충전도 안전하게 누적)
+      const result = await pool.query(
+        'UPDATE users SET points = points + $1 WHERE id = $2 RETURNING points',
+        [amount, userId],
+      );
+
+      if (result.rows.length === 0) {
+        // 0건 = 해당 유저 없음 (인증됐으니 드물지만 방어)
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+      }
+
+      res.json({ points: result.rows[0].points });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: '서버 오류가 발생했습니다' });

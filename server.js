@@ -262,39 +262,6 @@ app.post(
   },
 );
 
-app.put(
-  '/orders/:id',
-  authenticateToken,
-  body('product').trim().notEmpty().withMessage('product는 필수입니다'),
-  body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const orderId = Number(req.params.id);
-    const { product, quantity } = req.body;
-
-    try {
-      // IDOR 방어: 본인(req.user.userId) 소유의 주문만 수정 가능하도록 쿼리 조건에 user_id를 포함
-      const result = await pool.query(
-        'UPDATE orders SET product = $1, quantity = $2 WHERE order_id = $3 AND user_id = $4 RETURNING *',
-        [product, quantity, orderId, req.user.userId],
-      );
-
-      if (result.rows.length === 0) {
-        // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
-        return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
-      }
-      res.json(result.rows[0]);
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: '서버 오류가 발생했습니다' });
-    }
-  },
-);
-
 app.delete(
   '/orders/:id',
   authenticateToken,
@@ -306,23 +273,38 @@ app.delete(
     }
 
     const orderId = Number(req.params.id);
+    const userId = req.user.userId;
 
+    const client = await pool.connect();
     try {
-      // IDOR 방어 : 본인 소유의 주문만 삭제 가능하도록 쿼리 조건에 user_id를 포함
-      const result = await pool.query(
-        'DELETE FROM orders WHERE order_id = $1 AND user_id = $2 RETURNING *',
-        [orderId, req.user.userId],
+      await client.query('BEGIN');
+
+      // 취소 대상 조회 + 행 잠금: 본인 것 + 아직 'active'인 것만 (이미 취소된 건 안 잡힘)
+      const orderResult = await client.query(
+        "SELECT total FROM orders WHERE order_id = $1 AND user_id = $2 AND status = 'active' FOR UPDATE",
+        [orderId, userId],
       );
 
-      if (result.rows.length === 0) {
-        // 본인 소유가 아니거나 존재하지 않는 주문은 404 반환 (403이면 주문 존재 여부를 확인할 수 있음)
-        return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+      if (orderResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: '취소할 주문을 찾을 수 없습니다' });
       }
+      const { total } = orderResult.rows[0];
 
-      res.status(204).send();
+      // 주문 취소 (soft delete)
+      await client.query("UPDATE orders SET status = 'cancelled' WHERE order_id = $1", [orderId]);
+
+      // 포인트 환불
+      await client.query('UPDATE users SET points = points + $1 WHERE id = $2', [total, userId]);
+
+      await client.query('COMMIT');
+      res.json({ message: '주문이 취소되었습니다', refunded: total });
     } catch (err) {
+      await client.query('ROLLBACK');
       console.error(err);
       res.status(500).json({ error: '서버 오류가 발생했습니다' });
+    } finally {
+      client.release();
     }
   },
 );

@@ -386,6 +386,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: '서버 오류가 발생했습니다' });
 });
 
-app.listen(3000, () => {
-  console.log('서버 실행중 http://localhost:3000');
-});
+if (require.main === module) {
+  app.listen(3000, () => {
+    console.log('서버 실행중 http://localhost:3000');
+  });
+}
+
+module.exports = app;

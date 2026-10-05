@@ -48,3 +48,17 @@ describe('회원가입, 로그인 흐름', () => {
     expect(res.body).toHaveProperty('token');
   });
 });
+
+describe('인증 가드', () => {
+  it('토큰 없이 주문 목록 요청 시 401', async () => {
+    const res = await request(app).get('/orders');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('잘못된 토큰으로 요청 시 403', async () => {
+    const res = await request(app).get('/orders').set('Authorization', 'Bearer faketoken');
+
+    expect(res.status).toBe(403);
+  });
+});

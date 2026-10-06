@@ -62,3 +62,30 @@ describe('인증 가드', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('회원가입 로그인 검증 (A, B 유저)', () => {
+  const userA = { email: 'idor-a@example.com', password: 'password123#' };
+  const userB = { email: 'iodr-b@example.com', password: 'password123#' };
+  let tokenA;
+  let tokenB;
+
+  beforeAll(async () => {
+    // 반복 가능하게: 이전 테스트 유저 정리
+    await pool.query('DELETE FROM users WHERE email IN ($1, $2)', [userA.email, userB.email]);
+
+    // A, B 가입
+    await request(app).post('/signup').send(userA);
+    await request(app).post('/signup').send(userB);
+
+    // A, B 로그인 -> 토큰 확보
+    const resA = await request(app).post('/login').send(userA);
+    tokenA = resA.body.token;
+    const resB = await request(app).post('/login').send(userB);
+    tokenB = resB.body.token;
+  });
+
+  it('A와 B 모두 가입 후 로그인 되어 토큰을 받는다', () => {
+    expect(tokenA).toBeDefined();
+    expect(tokenB).toBeDefined();
+  });
+});

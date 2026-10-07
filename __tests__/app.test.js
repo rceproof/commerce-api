@@ -20,10 +20,6 @@ describe('GET /products', () => {
   });
 });
 
-afterAll(async () => {
-  await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
-});
-
 describe('회원가입, 로그인 흐름', () => {
   const testUser = { email: 'authtest@example.com', password: 'password123#' };
 
@@ -63,11 +59,12 @@ describe('인증 가드', () => {
   });
 });
 
-describe('회원가입 로그인 검증 (A, B 유저)', () => {
+describe('IDOR 방어 (주문 조회)', () => {
   const userA = { email: 'idor-a@example.com', password: 'password123#' };
-  const userB = { email: 'iodr-b@example.com', password: 'password123#' };
+  const userB = { email: 'idor-b@example.com', password: 'password123#' };
   let tokenA;
   let tokenB;
+  let orderIdA;
 
   beforeAll(async () => {
     // 반복 가능하게: 이전 테스트 유저 정리
@@ -82,10 +79,42 @@ describe('회원가입 로그인 검증 (A, B 유저)', () => {
     tokenA = resA.body.token;
     const resB = await request(app).post('/login').send(userB);
     tokenB = resB.body.token;
+
+    await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ amount: 100000 });
+
+    const orderRes = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ productId: 2, quantity: 1 });
+    orderIdA = orderRes.body.order_id;
   });
 
   it('A와 B 모두 가입 후 로그인 되어 토큰을 받는다', () => {
     expect(tokenA).toBeDefined();
     expect(tokenB).toBeDefined();
   });
+
+  it('A는 자기 주문을 조회할 수 있다 (200)', async () => {
+    const res = await request(app)
+      .get(`/orders/${orderIdA}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.order_id).toBe(orderIdA);
+  });
+
+  it('B는 A의 주문을 조회할 수 없다 (404)', async () => {
+    const res = await request(app)
+      .get(`/orders/${orderIdA}`)
+      .set('Authorization', `Bearer ${tokenB}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+afterAll(async () => {
+  await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
 });

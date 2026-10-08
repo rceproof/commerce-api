@@ -2,7 +2,7 @@ const request = require('supertest');
 const app = require('../server');
 const pool = require('../db');
 
-describe('GET /', () => {
+describe('GET / (환영 응답)', () => {
   it('환영 메시지를 200으로 응답한다', async () => {
     const res = await request(app).get('/');
 
@@ -11,7 +11,7 @@ describe('GET /', () => {
   });
 });
 
-describe('GET /products', () => {
+describe('GET /products (상품 목록)', () => {
   it('상품 목록을 배열로 200 응답한다', async () => {
     const res = await request(app).get('/products');
 
@@ -20,7 +20,7 @@ describe('GET /products', () => {
   });
 });
 
-describe('회원가입, 로그인 흐름', () => {
+describe('POST /signup, /login (회원가입, 로그인)', () => {
   const testUser = { email: 'authtest@example.com', password: 'password123#' };
 
   beforeAll(async () => {
@@ -45,7 +45,7 @@ describe('회원가입, 로그인 흐름', () => {
   });
 });
 
-describe('인증 가드', () => {
+describe('GET /orders (토큰 인증 가드)', () => {
   it('토큰 없이 주문 목록 요청 시 401', async () => {
     const res = await request(app).get('/orders');
 
@@ -59,7 +59,7 @@ describe('인증 가드', () => {
   });
 });
 
-describe('IDOR 방어 (주문 조회)', () => {
+describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
   const userA = { email: 'idor-a@example.com', password: 'password123#' };
   const userB = { email: 'idor-b@example.com', password: 'password123#' };
   let tokenA;

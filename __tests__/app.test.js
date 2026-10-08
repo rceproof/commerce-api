@@ -115,6 +115,47 @@ describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
   });
 });
 
+describe('DELETE /orders/:id (주문 취소, 환불)', () => {
+  const user = { email: 'cancel-test@example.com', password: 'password123#' };
+  let token;
+  let orderId;
+
+  beforeAll(async () => {
+    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
+    await request(app).post('/signup').send(user);
+    const res = await request(app).post('/login').send(user);
+    token = res.body.token;
+
+    await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 100000 });
+
+    const orderRes = await request(app)
+      .post('/orders')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ productId: 2, quantity: 1 });
+    orderId = orderRes.body.order_id;
+  });
+
+  it('주문 취소 시 200과 환불 금액을 반환한다', async () => {
+    const res = await request(app)
+      .delete(`/orders/${orderId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.refunded).toBe(25000);
+  });
+
+  it('이미 취소된 주문을 또 취소하면 404 (이중 환불 방어)', async () => {
+    const res = await request(app)
+      .delete(`/orders/${orderId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
 afterAll(async () => {
   await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
 });

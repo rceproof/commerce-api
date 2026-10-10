@@ -6,6 +6,8 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const ms = require('ms');
 const { body, param, validationResult } = require('express-validator');
+const swaggerUi = require('swagger-ui-express');
+const swaggerJsdoc = require('swagger-jsdoc');
 
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
@@ -45,6 +47,20 @@ const signupLimiter = rateLimit({
 });
 
 app.use(express.json());
+
+const swaggerSpec = swaggerJsdoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Commerce API',
+      version: '1.0.0',
+      description: '주문, 결제, 포인트 커머스 백엔드 API',
+    },
+  },
+  apis: ['./server.js'], // @swagger 주석을 읽을 파일
+});
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/', (req, res) => {
   res.send('환영합니다! Commerce API 입니다');

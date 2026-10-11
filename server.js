@@ -60,7 +60,9 @@ const swaggerSpec = swaggerJsdoc({
   apis: ['./server.js'], // @swagger 주석을 읽을 파일
 });
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+if (process.env.NODE_ENV !== 'production') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+}
 
 app.get('/', (req, res) => {
   res.send('환영합니다! Commerce API 입니다');

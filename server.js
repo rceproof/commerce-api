@@ -138,6 +138,17 @@ app.get('/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });
 });
 
+/**
+ * @swagger
+ * /products:
+ *  get:
+ *   summary: 상품 목록 조회
+ *   tags: [상품]
+ *   responses:
+ *     200:
+ *       description: 상품 목록 반환
+ */
+
 app.get('/products', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM products ORDER BY id');

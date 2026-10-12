@@ -128,6 +128,35 @@ app.post(
   },
 );
 
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     summary: 로그인
+ *     tags: [인증]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: test@example.com
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *     responses:
+ *       200:
+ *         description: 로그인 성공
+ *       400:
+ *         description: 입력값 검증 실패
+ *       401:
+ *         description: 인증 실패
+ */
+
 app.post(
   '/login',
   loginLimiter,

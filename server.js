@@ -68,6 +68,35 @@ app.get('/', (req, res) => {
   res.send('환영합니다! Commerce API 입니다');
 });
 
+/**
+ * @swagger
+ * /signup:
+ *   post:
+ *    summary: 회원 가입
+ *    tags: [인증]
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            required: [email, password]
+ *            properties:
+ *              email:
+ *                type: string
+ *                example: test@example.com
+ *              password:
+ *                type: string
+ *                example: password123
+ *    responses:
+ *     201:
+ *       description: 회원가입 성공
+ *     400:
+ *       description: 입력값 검증 실패
+ *     409:
+ *       description: 이미 존재하는 이메일
+ */
+
 app.post(
   '/signup',
   signupLimiter,

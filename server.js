@@ -56,8 +56,17 @@ const swaggerSpec = swaggerJsdoc({
       version: '1.0.0',
       description: '주문, 결제, 포인트 커머스 백엔드 API',
     },
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+    },
   },
-  apis: ['./server.js'], // @swagger 주석을 읽을 파일
+  apis: ['./server.js'],
 });
 
 if (process.env.NODE_ENV !== 'production') {

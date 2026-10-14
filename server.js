@@ -156,7 +156,7 @@ app.post(
  *                 example: test@example.com
  *               password:
  *                 type: string
- *                 example: password123
+ *                 example: test1234
  *     responses:
  *       200:
  *         description: 로그인 성공
@@ -202,6 +202,23 @@ app.post(
     }
   },
 );
+
+/**
+ * @swagger
+ * /me:
+ *   get:
+ *    summary: 내 정보 조회
+ *    tags: [인증]
+ *    security:
+ *      - bearerAuth: []
+ *    responses:
+ *      200:
+ *        description: 사용자 정보 반환
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ */
 
 app.get('/me', authenticateToken, (req, res) => {
   res.json({ user: req.user });

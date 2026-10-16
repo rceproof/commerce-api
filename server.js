@@ -245,6 +245,28 @@ app.get('/products', async (req, res) => {
   }
 });
 
+/**
+ * @swagger
+ * /products/{id}:
+ *    get:
+ *      summary: 상품 상세 조회
+ *      tags: [상품]
+ *      parameters:
+ *        - in: path
+ *          name: id
+ *          required: true
+ *          schema:
+ *          type: integer
+ *          description: 상품 ID
+ *      responses:
+ *        200:
+ *          description: 상품 정보 반환
+ *        400:
+ *          description: 잘못된 ID 형식
+ *        404:
+ *          description: 상품 없음
+ */
+
 app.get(
   '/products/:id',
   param('id').isInt({ min: 1 }).withMessage('id는 1 이상의 정수여야 합니다'),

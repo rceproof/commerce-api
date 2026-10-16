@@ -256,7 +256,7 @@ app.get('/products', async (req, res) => {
  *          name: id
  *          required: true
  *          schema:
- *          type: integer
+ *            type: integer
  *          description: 상품 ID
  *      responses:
  *        200:

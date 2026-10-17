@@ -293,6 +293,23 @@ app.get(
   },
 );
 
+/**
+ * @swagger
+ * /orders:
+ *   get:
+ *    summary: 내 주문 목록 조회
+ *    tags: [주문]
+ *    security:
+ *      - bearerAuth: []
+ *    responses:
+ *      200:
+ *        description: 주문 목록 반환
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ */
+
 app.get('/orders', authenticateToken, async (req, res) => {
   try {
     // IDOR 방어: 조회 대상 userId를 검증된 토큰(req.user)에서만 가져옴 (클라이언트 입력 신뢰 X)
@@ -305,6 +322,32 @@ app.get('/orders', authenticateToken, async (req, res) => {
     res.status(500).json({ error: '서버 오류가 발생했습니다' });
   }
 });
+
+/**
+ * @swagger
+ * /orders/{id}:
+ *   get:
+ *    summary: 주문 상세 조회
+ *    tags: [주문]
+ *    security:
+ *      - bearerAuth: []
+ *    parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: integer
+ *        description: 주문 ID
+ *    responses:
+ *      200:
+ *        description: 주문 정보 반환
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ *      404:
+ *        description: 주문 없음 (타인 주문도 404 - IDOR 방어)
+ */
 
 app.get(
   '/orders/:id',

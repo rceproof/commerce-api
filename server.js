@@ -475,6 +475,32 @@ app.post(
   },
 );
 
+/**
+ * @swagger
+ * /orders/{id}:
+ *  delete:
+ *    summary: 주문 취소 (환불)
+ *    tags: [주문]
+ *    security:
+ *      - bearerAuth: []
+ *    parameters:
+ *      - in: path
+ *        name: id
+ *        required: true
+ *        schema:
+ *          type: integer
+ *        description: 주문 ID
+ *    responses:
+ *      200:
+ *        description: 취소 성공 (환불 금액 반환)
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ *      404:
+ *        description: 주문 없음 (이미 취소됨/타인 주문 포함 - 이중환불 방어)
+ */
+
 app.delete(
   '/orders/:id',
   authenticateToken,
@@ -522,6 +548,36 @@ app.delete(
   },
 );
 
+/**
+ * @swagger
+ * /points/charge:
+ *  post:
+ *    summary: 포인트 충전
+ *    tags: [포인트]
+ *    security:
+ *      - bearerAuth: []
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            required: [amount]
+ *            properties:
+ *              amount:
+ *                type: integer
+ *                example: 100000
+ *    responses:
+ *      200:
+ *        description: 충전 성공 (잔액 반환)
+ *      400:
+ *        description: 입력값 검증 실패
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ */
+
 app.post(
   '/points/charge',
   authenticateToken,
@@ -554,6 +610,36 @@ app.post(
     }
   },
 );
+
+/**
+ * @swagger
+ * /points/use:
+ *  post:
+ *    summary: 포인트 사용 (차감)
+ *    tags: [포인트]
+ *    security:
+ *      - bearerAuth: []
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            required: [amount]
+ *            properties:
+ *              amount:
+ *                type: integer
+ *                example: 50000
+ *    responses:
+ *      200:
+ *        description: 사용 성공 (잔액 반환)
+ *      400:
+ *        description: 입력값 검증 실패 또는 포인트 부족
+ *      401:
+ *        description: 토큰 없음
+ *      403:
+ *        description: 토큰 검증 실패
+ */
 
 app.post(
   '/points/use',

@@ -420,7 +420,9 @@ app.post(
   '/orders',
   authenticateToken,
   body('productId').isInt({ min: 1 }).withMessage('productId는 1 이상의 정수여야 합니다'),
-  body('quantity').isInt({ min: 1 }).withMessage('quantity는 1 이상의 정수여야 합니다'),
+  body('quantity')
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('quantity는 1~1000 사이의 정수여야 합니다'),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -430,25 +432,28 @@ app.post(
     const { productId, quantity } = req.body;
     const userId = req.user.userId;
 
-    // 1. 상품 조회 (가격) - 단순 읽기라 트랜잭션 불필요
-    const productResult = await pool.query('SELECT name, price FROM products WHERE id = $1', [
-      productId,
-    ]);
-    if (productResult.rows.length === 0) {
-      return res.status(404).json({ error: '상품을 찾을 수 없습니다' });
-    }
-    const { name, price } = productResult.rows[0];
-    const total = price * quantity;
-
-    // 2. 결제 = 포인트 차감 + 주문 생성 (트랜잭션)
     const client = await pool.connect();
     try {
+      // 상품 조회 (BEGIN 전 = 트랜잭션 밖, 단 try 안이라 에러는 잡힘)
+      const productResult = await client.query('SELECT name, price FROM products WHERE id = $1', [
+        productId,
+      ]);
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: '상품을 찾을 수 없습니다' });
+      }
+      const { name, price } = productResult.rows[0];
+      const total = price * quantity;
+
       await client.query('BEGIN');
 
       // 포인트 행 잠금(FOR UPDATE) + 잔액 확인
       const userResult = await client.query('SELECT points FROM users WHERE id = $1 FOR UPDATE', [
         userId,
       ]);
+      if (userResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+      }
       if (userResult.rows[0].points < total) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: '포인트가 부족합니다' });

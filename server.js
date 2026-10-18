@@ -381,6 +381,41 @@ app.get(
   },
 );
 
+/**
+ * @swagger
+ * /orders:
+ *   post:
+ *      summary: 주문 생성 (결제)
+ *      tags: [주문]
+ *      security:
+ *        - bearerAuth: []
+ *      requestBody:
+ *        required: true
+ *        content:
+ *          application/json:
+ *            schema:
+ *              type: object
+ *              required: [productId, quantity]
+ *              properties:
+ *                productId:
+ *                  type: integer
+ *                  example: 2
+ *                quantity:
+ *                  type: integer
+ *                  example: 1
+ *      responses:
+ *        201:
+ *          description: 주문 생성 성공
+ *        400:
+ *          description: 입력값 검증 실패 또는 포인트 부족
+ *        401:
+ *          description: 토큰 없음
+ *        403:
+ *          description: 토큰 검증 실패
+ *        404:
+ *          description: 상품 없음
+ */
+
 app.post(
   '/orders',
   authenticateToken,

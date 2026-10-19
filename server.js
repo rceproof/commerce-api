@@ -399,7 +399,7 @@ app.post(
   body('quantity')
     .isInt({ min: 1, max: 1000 })
     .withMessage('quantity는 1~1000 사이의 정수여야 합니다'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -448,12 +448,11 @@ app.post(
       res.status(201).json(orderResult.rows[0]);
     } catch (err) {
       await client.query('ROLLBACK');
-      console.error(err);
-      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+      throw err;
     } finally {
       client.release();
     }
-  },
+  }),
 );
 
 /**
@@ -486,7 +485,7 @@ app.delete(
   '/orders/:id',
   authenticateToken,
   param('id').isInt({ min: 1 }).withMessage('id는 1 이상의 정수여야 합니다'),
-  async (req, res) => {
+  asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -521,12 +520,11 @@ app.delete(
       res.json({ message: '주문이 취소되었습니다', refunded: total });
     } catch (err) {
       await client.query('ROLLBACK');
-      console.error(err);
-      res.status(500).json({ error: '서버 오류가 발생했습니다' });
+      throw err;
     } finally {
       client.release();
     }
-  },
+  }),
 );
 
 /**

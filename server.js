@@ -46,6 +46,8 @@ const signupLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 app.use(express.json());
 
 const swaggerSpec = swaggerJsdoc({
@@ -235,15 +237,13 @@ app.get('/me', authenticateToken, (req, res) => {
  *       description: 상품 목록 반환
  */
 
-app.get('/products', async (req, res) => {
-  try {
+app.get(
+  '/products',
+  asyncHandler(async (req, res) => {
     const result = await pool.query('SELECT * FROM products ORDER BY id');
     res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: '서버 오류가 발생했습니다' });
-  }
-});
+  }),
+);
 
 /**
  * @swagger
@@ -686,6 +686,9 @@ app.use((err, req, res, next) => {
   console.error(err);
   if (err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
+  }
+  if (err.code === '23505') {
+    return res.status(409).json({ error: '이미 가입된 이메일입니다' });
   }
   res.status(500).json({ error: '서버 오류가 발생했습니다' });
 });

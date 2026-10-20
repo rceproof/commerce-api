@@ -577,6 +577,9 @@ app.post(
     const { amount } = req.body;
     const userId = req.user.userId;
 
+    //    테스트용 충전: 실서비스에서는 PG(포트원/토스 등)에
+    //    결제 완료를 server-to-server로 검증한 뒤에만 적립해야 함
+    //    (클라이언트의 "결제 완료"를 신뢰하지 않는 것이 핵심)
     // 원자적 증가: 현재 포인트에 amount 더함 (동시 충전도 안전하게 누적)
     const result = await pool.query(
       'UPDATE users SET points = points + $1 WHERE id = $2 RETURNING points',

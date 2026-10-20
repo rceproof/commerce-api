@@ -9,6 +9,13 @@ const { body, param, validationResult } = require('express-validator');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
+const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
+if (missingEnv.length > 0) {
+  console.error('필수 환경변수가 설정되지 않았습니다: ${missingEnv.join(', ')}');
+  process.exit(1);
+}
+
 // 타이밍 공격 방어용 더미 해시: 없는 이메일 로그인 시에도 compare를 수행해
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
 const DUMMY_HASH = bcrypt.hashSync('dummy_password', 12);

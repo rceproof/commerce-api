@@ -2,6 +2,7 @@ services:
   # PostgreSQL 컨테이너
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -18,6 +19,7 @@ services:
   # 내 앱 컨테이너
   app:
     build: .
+    restart: unless-stopped
     ports:
       - '3000:3000'
     environment:

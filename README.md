@@ -10,6 +10,7 @@
 - PostgreSQL
 
 ## 개발 환경
+
 - 런타임: Node.js (Express)
 - 데이터베이스: PostgreSQL
 - API 테스트: Postman
@@ -18,9 +19,9 @@
 
 ## 실행 방법
 
-​```
+​`
 node server.js
-​```
+​`
 
 실행 후 http://localhost:3000 접속
 
@@ -36,3 +37,12 @@ node server.js
 - [ ] 결제 / 포인트 트랜잭션
 - [ ] 동시성 제어 (이중 결제·중복 차감 방어)
 - [ ] 배포 (Docker, AWS)
+
+## 보안 관리
+
+### 의존성 취약점 패치 이력
+
+- **2026-10-24** — `npm audit` 취약점 2건 패치
+  - **body-parser** (High, GHSA-27r3-jxmh-p828): 압축 요청 본문 뒤 trailing bytes로 인한 DoS. `express.json()`이 gzip 본문을 해제하므로 실제 노출 경로가 존재해 우선 처리.
+  - **ip-address** (Moderate, GHSA-rxp7-6hxx-x8q5): IPv6 파싱 2차 시간(ReDoS). 전이 의존성이며 앱에서 해당 파싱 경로를 사용하지 않아 위험은 낮으나 함께 상향.
+  - 조치: `npm audit fix`(semver 호환) → 테스트 11건 통과 확인 → 재배포.

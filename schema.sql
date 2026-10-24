@@ -29,6 +29,9 @@ CREATE TABLE orders (
   status VARCHAR(20) NOT NULL DEFAULT 'active'
 );
 
+-- 주문 조회 성능: user_id 인덱스 (GET /orders)
+CREATE INDEX orders_user_id_idx ON orders (user_id);
+
 -- 상품 시드 데이터 (테스트에 필요)
 INSERT INTO products (name, price) VALUES
   ('노트북', 1200000),

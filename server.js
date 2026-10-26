@@ -5,7 +5,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const ms = require('ms');
-const { body, param, validationResult } = require('express-validator');
+const { body, param, query, validationResult } = require('express-validator');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
 
@@ -302,12 +302,42 @@ app.get(
 app.get(
   '/orders',
   authenticateToken,
+  query('page').optional().isInt({ min: 1 }).withMessage('page는 1 이상의 정수여야 합니다').toInt(),
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('limit은 1~100 사이의 정수여야 합니다')
+    .toInt(),
   asyncHandler(async (req, res) => {
-    // IDOR 방어: 조회 대상 userId를 검증된 토큰(req.user)에서만 가져옴 (클라이언트 입력 신뢰 X)
-    const result = await pool.query('SELECT * FROM orders WHERE user_id = $1 ORDER BY order_id', [
-      req.user.userId,
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    const userId = req.user.userId;
+
+    // 전체 개수 ( 전체 페이지 수 계산용)
+    const countResult = await pool.query('SELECT COUNT(*) FROM orders WHERE user_id = $1', [
+      userId,
     ]);
-    res.json(result.rows);
+    const total = Number(countResult.rows[0].count);
+
+    // 해당 페이지 데이터만 (IDOR 방어: userId는 토큰에서)
+    const result = await pool.query(
+      'SELECT * FROM orders WHERE user_id = $1 ORDER BY order_id LIMIT $2 OFFSET $3',
+      [userId, limit, offset],
+    );
+
+    res.json({
+      data: result.rows,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   }),
 );
 

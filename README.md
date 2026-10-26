@@ -15,6 +15,7 @@
 - 데이터베이스: PostgreSQL
 - API 테스트: Postman
 - 버전 관리: Git / GitHub
+- 배포: Docker, AWS EC2
 - 의존성 보안: npm audit, Dependabot
 
 ## 실행 방법
@@ -30,13 +31,14 @@ node server.js
 - [x] Express 기반 REST API
 - [x] 주문 CRUD (생성 / 조회 / 수정 / 삭제)
 - [x] PostgreSQL 연동
+- [x] 인증 / 인가 (JWT)
+- [x] 결제 / 포인트 트랜잭션
+- [x] 동시성 제어 (이중 결제·중복 차감 방어)
 - [x] 접근 통제 (IDOR 방어 — userId + orderId 검증)
 - [x] SQL 인젝션 방어 (파라미터화 쿼리)
+- [x] 목록 페이지네이션 (`GET /orders`)
 - [x] 의존성 취약점 관리 (npm audit, Dependabot)
-- [ ] 인증 / 인가 (JWT)
-- [ ] 결제 / 포인트 트랜잭션
-- [ ] 동시성 제어 (이중 결제·중복 차감 방어)
-- [ ] 배포 (Docker, AWS)
+- [x] 배포 (Docker, AWS EC2)
 
 ## 성능
 
@@ -66,6 +68,13 @@ node server.js
   - **성능** — 조회가 단일 쿼리로 끝나고 JOIN 비용조차 없음
   - **정확성** — 상품명·가격이 이후 변경돼도 주문은 **주문 당시의 값**을 그대로 보존 (주문 이력 왜곡 방지)
 - **참고:** 위 수치는 앱·DB가 같은 로컬 환경 기준. 앱과 DB가 분리된 배포 환경에선 쿼리당 네트워크 왕복이 더해져 N+1과의 격차가 크게 벌어진다.
+
+### 목록 페이지네이션
+
+- `GET /orders`에 `page` / `limit` 쿼리 파라미터 지원 (기본 `page=1`, `limit=20`, `limit` 최대 100)
+- `LIMIT` / `OFFSET`으로 페이지 단위 분할 → 응답 크기와 DB 부하를 낮춤
+- 응답에 `total`, `totalPages` 메타데이터를 포함해 클라이언트 페이지 UI를 지원
+- **참고(트레이드오프):** `OFFSET` 방식은 뒤쪽 페이지(높은 OFFSET)에서 건너뛸 행을 모두 읽어 성능이 저하됨. 트래픽 증가 시 keyset(커서) 방식으로 전환 가능.
 
 ## 보안 관리
 

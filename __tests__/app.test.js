@@ -59,6 +59,62 @@ describe('GET /orders (토큰 인증 가드)', () => {
   });
 });
 
+describe('GET /orders (페이지네이션)', () => {
+  const user = { email: 'pagination-test@example.com', password: 'password123#' };
+  let token;
+
+  beforeAll(async () => {
+    //반복 가능하게: 이전 테스트 유저 정리
+    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
+    await request(app).post('/signup').send(user);
+    const res = await request(app).post('/login').send(user);
+    token = res.body.token;
+
+    // 포인트 충전 후 주문 3개 생성 (페이지 나뉘는 걸 보려면 여러 건 필요)
+    await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 100000 });
+
+    for (let i = 0; i < 3; i++) {
+      await request(app)
+        .post('/orders')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ productId: 2, quantity: 1 });
+    }
+  });
+
+  it('limit만큼만 반환하고 페이지 메타를 포함한다', async () => {
+    const res = await request(app)
+      .get('/orders?page=1&limit=2')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(2); // limit=2라 2건만
+    expect(res.body.total).toBe(3); // 총 3건 만들었으니
+    expect(res.body.totalPages).toBe(2); // ceil(3/2) = 2
+    expect(res.body.page).toBe(1);
+    expect(res.body.limit).toBe(2);
+  });
+
+  it('page 2는 나머지 주문을 반환한다', async () => {
+    const res = await request(app)
+      .get('/orders?page=2&limit=2')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(1); // 3건 중 2페이지엔 1건
+    expect(res.body.page).toBe(2);
+  });
+
+  it('limit이 100을 넘으면 400 (대량 추출 방어)', async () => {
+    const res = await request(app).get('/orders?limit=101').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
   const userA = { email: 'idor-a@example.com', password: 'password123#' };
   const userB = { email: 'idor-b@example.com', password: 'password123#' };

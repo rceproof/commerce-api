@@ -286,13 +286,27 @@ app.get(
  * @swagger
  * /orders:
  *   get:
- *    summary: 내 주문 목록 조회
+ *    summary: 내 주문 목록 조회 (페이지네이션)
  *    tags: [주문]
  *    security:
  *      - bearerAuth: []
+ *    parameters:
+ *      - in: query
+ *        name: page
+ *        schema:
+ *          type: integer
+ *          default: 1
+ *        description: 페이지 번호 (1부터)
+ *      - in: query
+ *        name: limit
+ *        schema:
+ *          type: integer
+ *          default: 20
+ *          maximum: 100
+ *        description: 페이지당 개수 (최대 100)
  *    responses:
  *      200:
- *        description: 주문 목록 반환
+ *        description: 주문 목록 + 페이지 메타(total, totalPages) 반환
  *      401:
  *        description: 토큰 없음
  *      403:

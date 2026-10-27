@@ -39,6 +39,7 @@ node server.js
 - [x] 목록 페이지네이션 (`GET /orders`)
 - [x] 의존성 취약점 관리 (npm audit, Dependabot)
 - [x] 배포 (Docker, AWS EC2)
+- [x] 배포 이미지 하드닝 (운영 문서 비노출, 비권한 실행, 이미지 경량화)
 
 ## 성능
 

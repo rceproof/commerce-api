@@ -1,7 +1,8 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
-const BASE = 'http://localhost:3000';
+const BASE = __ENV.BASE_URL || 'http://localhost:3000';
+const MAX = Number(__ENV.MAX_VUS) || 100; // 기본 100, -e MAX_VUS=N 으로 변경
 
 // 테스트 시작 전 딱 1번 실행 - 로그인해서 토큰 확보
 export function setup() {
@@ -15,10 +16,10 @@ export function setup() {
 
 export const options = {
   stages: [
-    { duration: '30s', target: 50 }, // 30초에 걸쳐 0 → 50명까지 증가
-    { duration: '1m', target: 50 }, // 50명으로 1분 유지
-    { duration: '30s', target: 100 }, // 50 → 100명까지 증가
-    { duration: '30s', target: 0 }, // 100 → 0명 (쿨다운)
+    { duration: '30s', target: Math.round(MAX / 2) }, // 30초에 걸쳐 MAX의 절반까지 증가
+    { duration: '30s', target: MAX }, // MAX까지 증가
+    { duration: '1m', target: MAX }, // MAX 유지
+    { duration: '30s', target: 0 }, // MAX → 0명 (쿨다운)
   ],
   thresholds: {
     http_req_duration: ['p(95)<500'], // 95% 요청이 500ms 안에

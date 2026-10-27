@@ -84,3 +84,17 @@ node server.js
   - **body-parser** (High, GHSA-27r3-jxmh-p828): 압축 요청 본문 뒤 trailing bytes로 인한 DoS. `express.json()`이 gzip 본문을 해제하므로 실제 노출 경로가 존재해 우선 처리.
   - **ip-address** (Moderate, GHSA-rxp7-6hxx-x8q5): IPv6 파싱 2차 시간(ReDoS). 전이 의존성이며 앱에서 해당 파싱 경로를 사용하지 않아 위험은 낮으나 함께 상향.
   - 조치: `npm audit fix`(semver 호환) → 테스트 11건 통과 확인 → 재배포.
+
+### 배포 이미지 하드닝
+
+운영 배포(Docker)를 공격자 관점으로 점검해 **공격면과 노출 정보를 최소화**했다.
+
+| 항목            | 조치                                            | 효과                                                              |
+| --------------- | ----------------------------------------------- | ----------------------------------------------------------------- |
+| API 문서 노출   | `NODE_ENV=production`에서 `/api-docs` 비활성화  | 운영에서 엔드포인트·파라미터·인증 방식 정보 노출 차단 (정찰 방어) |
+| 불필요 코드     | `.dockerignore`에 `__tests__`, `poc`, 문서 제외 | 테스트·벤치 스크립트가 운영 이미지에 안 들어감                    |
+| devDependencies | `npm ci --omit=dev`                             | jest·supertest 등 런타임에 불필요한 패키지 제외 (취약점 표면 ↓)   |
+| 실행 권한       | `USER node` (root 대신 일반 유저)               | 컨테이너 내 RCE 시 권한 최소화 (CIS/K8s 기준)                     |
+| 베이스 이미지   | `node:22` → `node:22-slim`                      | 이미지 약 1.1GB → **402MB**, OS 패키지 축소로 공격면 ↓            |
+
+- **검증:** `docker compose up` 후 기동(`/` 200), 회원가입·로그인(bcrypt 정상), `/api-docs` **404**(비노출), 실행 유저 `node` 확인.

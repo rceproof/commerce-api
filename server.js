@@ -12,7 +12,7 @@ const swaggerJsdoc = require('swagger-jsdoc');
 const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missingEnv.length > 0) {
-  console.error('필수 환경변수가 설정되지 않았습니다: ${missingEnv.join(', ')}');
+  console.error(`필수 환경변수가 설정되지 않았습니다: ${missingEnv.join(', ')}`);
   process.exit(1);
 }
 

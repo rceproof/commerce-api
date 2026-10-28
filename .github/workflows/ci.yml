@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    # 테스트가 쓸 postgres를 같이 띄움 (서비스 컨테이너)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: commerce_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: commerce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    # 앱이 읽을 환경변수 (.env는 git에 없으니 여기서 주입)
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USER: commerce_user
+      DB_PASSWORD: test_password
+      DB_NAME: commerce_test # ← 다시 추가 (REQUIRED_ENV에 있음)
+      DB_NAME_TEST: commerce_test
+      JWT_SECRET: test_jwt_secret
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: 테스트 DB에 스키마 로드
+        run: psql postgresql://commerce_user:test_password@localhost:5432/commerce_test -f schema.sql
+
+      - run: npm test

@@ -33,6 +33,7 @@ jobs:
       DB_PORT: 5432
       DB_USER: commerce_user
       DB_PASSWORD: test_password
+      DB_NAME: commerce_test # ← 다시 추가 (REQUIRED_ENV에 있음)
       DB_NAME_TEST: commerce_test
       JWT_SECRET: test_jwt_secret
 

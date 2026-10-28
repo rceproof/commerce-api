@@ -712,9 +712,22 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(3000, () => {
-    console.log('서버 실행중 http://localhost:3000');
-  });
-}
+  const cluster = require('cluster');
 
+  if (cluster.isPrimary) {
+    // 워커마다 DB 풀이 생기므로 워커수 X DB_POOL_MAX < Postgre max_connections(기본 100) 유지
+    const numWorkers = Number(process.env.WORKERS) || 4;
+    console.log(`Primary ${process.pid} - 워커 ${numWorkers}개 포크`);
+    for (let i = 0; i < numWorkers; i++) cluster.fork();
+
+    cluster.on('exit', (worker) => {
+      console.log(`워커 ${worker.process.pid} 종료 → 재포크`);
+      cluster.fork();
+    });
+  } else {
+    app.listen(3000, () => {
+      console.log('서버 실행중 http://localhost:3000');
+    });
+  }
+}
 module.exports = app;

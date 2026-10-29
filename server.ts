@@ -1,3 +1,4 @@
+import type { Worker } from 'cluster';
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import pool from './db';
 import bcrypt from 'bcrypt';
@@ -714,12 +715,13 @@ app.use((req, res) => {
   res.status(404).json({ error: '요청하신 경로를 찾을 수 없습니다' });
 });
 
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
-  if (err.type === 'entity.parse.failed') {
+  const e = err as { type?: string; code?: string };
+  if (e.type === 'entity.parse.failed') {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
   }
-  if (err.code === '23505') {
+  if (e.code === '23505') {
     return res.status(409).json({ error: '이미 가입된 이메일입니다' });
   }
   res.status(500).json({ error: '서버 오류가 발생했습니다' });
@@ -734,7 +736,7 @@ if (require.main === module) {
     console.log(`Primary ${process.pid} - 워커 ${numWorkers}개 포크`);
     for (let i = 0; i < numWorkers; i++) cluster.fork();
 
-    cluster.on('exit', (worker: any) => {
+    cluster.on('exit', (worker: Worker) => {
       console.log(`워커 ${worker.process.pid} 종료 → 재포크`);
       cluster.fork();
     });

@@ -90,7 +90,7 @@ const swaggerSpec = swaggerJsdoc({
       },
     },
   },
-  apis: ['./server.js'],
+  apis: ['./server.ts', './dist/server.js'],
 });
 
 if (process.env.NODE_ENV !== 'production') {

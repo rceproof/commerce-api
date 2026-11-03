@@ -1,6 +1,7 @@
 import type { Worker } from 'cluster';
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import pool from './db';
+import { DatabaseError } from 'pg';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
@@ -717,11 +718,12 @@ app.use((req, res) => {
 
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
-  const e = err as { type?: string; code?: string };
-  if (e.type === 'entity.parse.failed') {
+  // JSON 파싱 실패: 객체이고 type 칸이 실제로 있는지 확인한 뒤 비교
+  if (typeof err === 'object' && err !== null && 'type' in err && err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
   }
-  if (e.code === '23505') {
+  // 이메일 중복: pg의 DB 에러인지 확인한 뒤 code 비교
+  if (err instanceof DatabaseError && err.code === '23505') {
     return res.status(409).json({ error: '이미 가입된 이메일입니다' });
   }
   res.status(500).json({ error: '서버 오류가 발생했습니다' });

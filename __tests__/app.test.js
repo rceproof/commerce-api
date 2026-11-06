@@ -1,6 +1,7 @@
 const request = require('supertest');
 const app = require('../server');
 const pool = require('../db');
+const jwt = require('jsonwebtoken');
 
 describe('GET / (환영 응답)', () => {
   it('환영 메시지를 200으로 응답한다', async () => {
@@ -43,8 +44,8 @@ describe('POST /signup, /login (회원가입, 로그인)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveProperty('token');
 
-    // 토큰 페이로드(가운데 부분)를 디코딩해 개인정보가 없는지 확인
-    const payload = JSON.parse(Buffer.from(res.body.token.split('.')[1], 'base64url').toString());
+    // 서버 비밀키로 토큰을 검증(서명·만료)한 뒤, 페이로드에 개인정보가 없는지 확인
+    const payload = jwt.verify(res.body.token, process.env.JWT_SECRET);
     expect(payload).toHaveProperty('userId');
     expect(payload).not.toHaveProperty('email'); // 토큰에 이메일 미포함
   });

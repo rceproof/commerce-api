@@ -52,6 +52,10 @@ describe('POST /signup, /login (회원가입, 로그인)', () => {
 });
 
 describe('GET /orders (토큰 인증 가드)', () => {
+  // 변조 재료: 서버와 같은 비밀키로 서명한 정상 토큰 (로그인 시도 제한 15분 5회를 쓰지 않도록 직접 발급)
+  const token = jwt.sign({ userId: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+
   it('토큰 없이 주문 목록 요청 시 401', async () => {
     const res = await request(app).get('/orders');
 
@@ -60,6 +64,44 @@ describe('GET /orders (토큰 인증 가드)', () => {
 
   it('잘못된 토큰으로 요청 시 403', async () => {
     const res = await request(app).get('/orders').set('Authorization', 'Bearer faketoken');
+
+    expect(res.status).toBe(403);
+  });
+
+  it('정상 토큰으로 요청 시 200 (아래 변조 테스트의 기준)', async () => {
+    const res = await request(app).get('/orders').set('Authorization', `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  it('페이로드(userId)를 변조한 토큰으로 요청 시 403 (서명 불일치)', async () => {
+    const [header, payload, signature] = token.split('.');
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    const tampered = encode({ ...decoded, userId: decoded.userId + 1 });
+
+    const res = await request(app)
+      .get('/orders')
+      .set('Authorization', `Bearer ${header}.${tampered}.${signature}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('alg:none + 서명 제거 토큰으로 요청 시 403', async () => {
+    const [, payload] = token.split('.');
+
+    const res = await request(app)
+      .get('/orders')
+      .set('Authorization', `Bearer ${encode({ alg: 'none', typ: 'JWT' })}.${payload}.`);
+
+    expect(res.status).toBe(403);
+  });
+
+  it('alg:none + 원래 서명 유지 토큰으로 요청 시 403', async () => {
+    const [, payload, signature] = token.split('.');
+
+    const res = await request(app)
+      .get('/orders')
+      .set('Authorization', `Bearer ${encode({ alg: 'none', typ: 'JWT' })}.${payload}.${signature}`);
 
     expect(res.status).toBe(403);
   });

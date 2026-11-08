@@ -47,6 +47,7 @@ describe('POST /signup, /login (회원가입, 로그인)', () => {
     // 서버 비밀키로 토큰을 검증(서명·만료)한 뒤, 페이로드에 개인정보가 없는지 확인
     const payload = jwt.verify(res.body.token, process.env.JWT_SECRET);
     expect(payload).toHaveProperty('userId');
+    expect(payload).toHaveProperty('exp'); // 만료 시각 포함 (없으면 jwt.verify가 만료를 검사하지 않음)
     expect(payload).not.toHaveProperty('email'); // 토큰에 이메일 미포함
   });
 });

@@ -1,4 +1,4 @@
-import type { Worker } from 'cluster';
+import cluster, { type Worker } from 'cluster';
 import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import pool from './db';
 import { DatabaseError } from 'pg';
@@ -730,8 +730,6 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 });
 
 if (require.main === module) {
-  const cluster = require('cluster');
-
   if (cluster.isPrimary) {
     // 워커마다 DB 풀이 생기므로 워커수 X DB_POOL_MAX < Postgre max_connections(기본 100) 유지
     const numWorkers = Number(process.env.WORKERS) || 4;

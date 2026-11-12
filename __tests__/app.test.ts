@@ -1,7 +1,7 @@
-const request = require('supertest');
-const app = require('../server');
-const pool = require('../db');
-const jwt = require('jsonwebtoken');
+import request from 'supertest';
+import app from '../server';
+import pool from '../db';
+import jwt from 'jsonwebtoken';
 
 describe('GET / (환영 응답)', () => {
   it('환영 메시지를 200으로 응답한다', async () => {
@@ -45,7 +45,7 @@ describe('POST /signup, /login (회원가입, 로그인)', () => {
     expect(res.body).toHaveProperty('token');
 
     // 서버 비밀키로 토큰을 검증(서명·만료)한 뒤, 페이로드에 개인정보가 없는지 확인
-    const payload = jwt.verify(res.body.token, process.env.JWT_SECRET);
+    const payload = jwt.verify(res.body.token, process.env.JWT_SECRET!);
     expect(payload).toHaveProperty('userId');
     expect(payload).toHaveProperty('exp'); // 만료 시각 포함 (없으면 jwt.verify가 만료를 검사하지 않음)
     expect(payload).not.toHaveProperty('email'); // 토큰에 이메일 미포함
@@ -54,8 +54,8 @@ describe('POST /signup, /login (회원가입, 로그인)', () => {
 
 describe('GET /orders (토큰 인증 가드)', () => {
   // 변조 재료: 서버와 같은 비밀키로 서명한 정상 토큰 (로그인 시도 제한 15분 5회를 쓰지 않도록 직접 발급)
-  const token = jwt.sign({ userId: 1 }, process.env.JWT_SECRET, { expiresIn: '1h' });
-  const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+  const token = jwt.sign({ userId: 1 }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url');
 
   it('토큰 없이 주문 목록 요청 시 401', async () => {
     const res = await request(app).get('/orders');
@@ -102,7 +102,10 @@ describe('GET /orders (토큰 인증 가드)', () => {
 
     const res = await request(app)
       .get('/orders')
-      .set('Authorization', `Bearer ${encode({ alg: 'none', typ: 'JWT' })}.${payload}.${signature}`);
+      .set(
+        'Authorization',
+        `Bearer ${encode({ alg: 'none', typ: 'JWT' })}.${payload}.${signature}`,
+      );
 
     expect(res.status).toBe(403);
   });
@@ -110,7 +113,7 @@ describe('GET /orders (토큰 인증 가드)', () => {
 
 describe('GET /orders (페이지네이션)', () => {
   const user = { email: 'pagination-test@example.com', password: 'password123#' };
-  let token;
+  let token: string;
 
   beforeAll(async () => {
     //반복 가능하게: 이전 테스트 유저 정리
@@ -167,9 +170,9 @@ describe('GET /orders (페이지네이션)', () => {
 describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
   const userA = { email: 'idor-a@example.com', password: 'password123#' };
   const userB = { email: 'idor-b@example.com', password: 'password123#' };
-  let tokenA;
-  let tokenB;
-  let orderIdA;
+  let tokenA: string;
+  let tokenB: string;
+  let orderIdA: number;
 
   beforeAll(async () => {
     // 반복 가능하게: 이전 테스트 유저 정리
@@ -222,8 +225,8 @@ describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
 
 describe('DELETE /orders/:id (주문 취소, 환불)', () => {
   const user = { email: 'cancel-test@example.com', password: 'password123#' };
-  let token;
-  let orderId;
+  let token: string;
+  let orderId: number;
 
   beforeAll(async () => {
     await pool.query('DELETE FROM users WHERE email = $1', [user.email]);

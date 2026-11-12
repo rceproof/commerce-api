@@ -8,8 +8,9 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "jest"]
   },
-  "include": ["server.ts", "db.ts"],
+  "include": ["server.ts", "db.ts", "__tests__"],
   "exclude": ["node_modules", "dist"]
 }

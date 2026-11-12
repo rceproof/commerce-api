@@ -20,9 +20,14 @@
 
 ## 실행 방법
 
-​`
-node server.js
-​`
+```bash
+npm install     # 의존성 설치
+npm run build   # TypeScript → JavaScript (dist/)
+npm start       # 운영 실행 (빌드된 dist/server.js)
+npm run dev     # 개발 실행 (ts-node, 빌드 없이 바로)
+```
+
+필요한 환경변수(`.env`): `JWT_SECRET`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_NAME_TEST`
 
 실행 후 http://localhost:3000 접속
 

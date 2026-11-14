@@ -1,13 +1,24 @@
-const express = require('express');
+import cluster, { type Worker } from 'cluster';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
+import pool from './db';
+import { DatabaseError } from 'pg';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
+import ms from 'ms';
+import { body, param, query, validationResult } from 'express-validator';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
+
+declare global {
+  namespace Express {
+    interface Request {
+      user: { userId: number };
+    }
+  }
+}
+
 const app = express();
-const pool = require('./db');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const rateLimit = require('express-rate-limit');
-const ms = require('ms');
-const { body, param, query, validationResult } = require('express-validator');
-const swaggerUi = require('swagger-ui-express');
-const swaggerJsdoc = require('swagger-jsdoc');
 
 const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
@@ -20,7 +31,7 @@ if (missingEnv.length > 0) {
 // 응답 시간으로 계정 존재 여부가 노출되지 않게 함
 const DUMMY_HASH = bcrypt.hashSync('dummy_password', 12);
 
-function authenticateToken(req, res, next) {
+function authenticateToken(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -29,7 +40,9 @@ function authenticateToken(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!, { algorithms: ['HS256'] }) as {
+      userId: number;
+    };
     req.user = decoded;
     next();
   } catch (err) {
@@ -53,7 +66,10 @@ const signupLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+const asyncHandler =
+  (fn: RequestHandler): RequestHandler =>
+  (req, res, next) =>
+    Promise.resolve(fn(req, res, next)).catch(next);
 
 app.use(express.json());
 
@@ -75,7 +91,7 @@ const swaggerSpec = swaggerJsdoc({
       },
     },
   },
-  apis: ['./server.js'],
+  apis: ['./server.ts', './dist/server.js'],
 });
 
 if (process.env.NODE_ENV !== 'production') {
@@ -191,7 +207,7 @@ app.post(
     if (!user || !isMatch) {
       return res.status(401).json({ error: '이메일 또는 비밀번호가 올바르지 않습니다' });
     }
-    const token = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET!, {
       expiresIn: '1h',
     });
 
@@ -700,27 +716,27 @@ app.use((req, res) => {
   res.status(404).json({ error: '요청하신 경로를 찾을 수 없습니다' });
 });
 
-app.use((err, req, res, next) => {
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
-  if (err.type === 'entity.parse.failed') {
+  // JSON 파싱 실패: 객체이고 type 칸이 실제로 있는지 확인한 뒤 비교
+  if (typeof err === 'object' && err !== null && 'type' in err && err.type === 'entity.parse.failed') {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
   }
-  if (err.code === '23505') {
+  // 이메일 중복: pg의 DB 에러인지 확인한 뒤 code 비교
+  if (err instanceof DatabaseError && err.code === '23505') {
     return res.status(409).json({ error: '이미 가입된 이메일입니다' });
   }
   res.status(500).json({ error: '서버 오류가 발생했습니다' });
 });
 
 if (require.main === module) {
-  const cluster = require('cluster');
-
   if (cluster.isPrimary) {
     // 워커마다 DB 풀이 생기므로 워커수 X DB_POOL_MAX < Postgre max_connections(기본 100) 유지
     const numWorkers = Number(process.env.WORKERS) || 4;
     console.log(`Primary ${process.pid} - 워커 ${numWorkers}개 포크`);
     for (let i = 0; i < numWorkers; i++) cluster.fork();
 
-    cluster.on('exit', (worker) => {
+    cluster.on('exit', (worker: Worker) => {
       console.log(`워커 ${worker.process.pid} 종료 → 재포크`);
       cluster.fork();
     });
@@ -730,4 +746,5 @@ if (require.main === module) {
     });
   }
 }
-module.exports = app;
+
+export default app;

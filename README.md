@@ -20,9 +20,14 @@
 
 ## 실행 방법
 
-​`
-node server.js
-​`
+```bash
+npm install     # 의존성 설치
+npm run build   # TypeScript → JavaScript (dist/)
+npm start       # 운영 실행 (빌드된 dist/server.js)
+npm run dev     # 개발 실행 (ts-node, 빌드 없이 바로)
+```
+
+필요한 환경변수(`.env`): `JWT_SECRET`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_NAME_TEST`
 
 실행 후 http://localhost:3000 접속
 
@@ -131,6 +136,11 @@ node server.js
   - **ip-address** (Moderate, GHSA-rxp7-6hxx-x8q5): IPv6 파싱 2차 시간(ReDoS). 전이 의존성이며 앱에서 해당 파싱 경로를 사용하지 않아 위험은 낮으나 함께 상향.
   - 조치: `npm audit fix`(semver 호환) → 테스트 11건 통과 확인 → 재배포.
 
+- **2026-11-13** — `npm audit` 취약점 21건 평가 (운영/개발 분리 + 도달성 분석)
+  - 21건 중 18건은 개발 의존성(jest 계열)으로, 운영 이미지는 `npm ci --omit=dev` 빌드라 미포함.
+  - 운영 경로 3건(`swagger-jsdoc` → `glob`/`minimatch`)은 기동 시 **고정 경로**만 읽어, 사용자 입력이 glob 패턴으로 유입되는 경로가 없음 → **HTTP 요청으로 도달 불가.**
+  - `--force` 수정은 `swagger-jsdoc` 다운그레이드(6.3.0→6.2.8)·`jest` 구버전 회귀를 유발해 보류. 상위 패키지가 전이 의존성을 해소하면 상향, 사용 방식이 바뀌면 재평가.
+
 ### 배포 이미지 하드닝
 
 운영 배포(Docker)를 공격자 관점으로 점검해 **공격면과 노출 정보를 최소화**했다.
@@ -144,3 +154,10 @@ node server.js
 | 베이스 이미지   | `node:22` → `node:22-slim`                      | 이미지 약 1.1GB → **402MB**, OS 패키지 축소로 공격면 ↓            |
 
 - **검증:** `docker compose up` 후 기동(`/` 200), 회원가입·로그인(bcrypt 정상), `/api-docs` **404**(비노출), 실행 유저 `node` 확인.
+
+### JWT 토큰 정보 최소화
+
+- **문제:** 로그인 토큰에 `userId`와 함께 `email`을 담고 있었음. JWT는 서명만 될 뿐 암호화되지 않아, 토큰을 가진 누구나 비밀키 없이 디코딩해 이메일을 읽을 수 있음. 반면 인가 로직은 `userId`만 사용하고 토큰의 `email`을 읽는 코드는 없었음.
+- **조치:** 토큰에 `userId`만 담도록 변경 (불필요한 개인정보 노출 제거). 이메일은 DB에만 저장.
+- **검증:** PostgreSQL 연동 테스트 14건 통과. 전체 API 요청 37건을 수정 전·후로 비교한 결과, 토큰과 `/me` 응답의 `email` 외 모든 응답 동일.
+- **재현:** 비밀키 없이 토큰 페이로드가 열람되는 것을 확인하고, 변조 토큰(`userId` 변조, `alg:none`)은 서명 검증으로 403 차단됨을 검증. (`poc/jwt_tampering_attack.js`)

@@ -264,6 +264,37 @@ describe('DELETE /orders/:id (주문 취소, 환불)', () => {
   });
 });
 
+describe('POST /points/charge (충전 상한 검증)', () => {
+  const user = { email: 'charge-limit@example.com', password: 'password123#' };
+  let token: string;
+
+  beforeAll(async () => {
+    //반복 가능하게: 이전 테스트 유저 정리
+    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
+    const res = await request(app).post('/signup').send(user);
+    token = jwt.sign({ userId: res.body.id }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+  });
+
+  it('보유 한도(200만)를 초과하면 400', async () => {
+    const res = await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 2000001 });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('상한 경계값(200만)은 정상 충전된다 (200)', async () => {
+    const res = await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 2000000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.points).toBe(2000000);
+  });
+});
+
 afterAll(async () => {
   await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
 });

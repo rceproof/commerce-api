@@ -627,7 +627,10 @@ app.delete(
 app.post(
   '/points/charge',
   authenticateToken,
-  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
+  // 선불 포인트 보유 한도: 전자금융거래법 기명식 선불전자지급 수단 200만원 기준
+  body('amount')
+    .isInt({ min: 1, max: 2000000 })
+    .withMessage('amount는 1 이상 200만 이하의 정수여야 합니다'),
   asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

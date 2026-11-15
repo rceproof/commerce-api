@@ -716,16 +716,31 @@ app.use((req, res) => {
   res.status(404).json({ error: '요청하신 경로를 찾을 수 없습니다' });
 });
 
+// 로그에 개인정보(이메일)를 남기지 않기 위한 마스킹: user@example.com → u***@example.com
+function maskEmail(email?: string): string {
+  if (!email || typeof email !== 'string') return '(unknown)';
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  console.error(err);
-  // JSON 파싱 실패: 객체이고 type 칸이 실제로 있는지 확인한 뒤 비교
-  if (typeof err === 'object' && err !== null && 'type' in err && err.type === 'entity.parse.failed') {
+  // JSON 파싱 실패 (클라이언트 요청 오류) — 서버 에러 로그 없이 400 반환
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    'type' in err &&
+    err.type === 'entity.parse.failed'
+  ) {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
   }
-  // 이메일 중복: pg의 DB 에러인지 확인한 뒤 code 비교
+  // 이메일 중복 (예상된 상황) — 평문 대신 마스킹하여 기록 후 409 반환
   if (err instanceof DatabaseError && err.code === '23505') {
+    console.warn(`중복 이메일 가입 시도: ${maskEmail(req.body?.email)}`);
     return res.status(409).json({ error: '이미 가입된 이메일입니다' });
   }
+  // 그 외 예기치 못한 서버 오류만 전체 로깅 후 500 반환
+  console.error(err);
   res.status(500).json({ error: '서버 오류가 발생했습니다' });
 });
 

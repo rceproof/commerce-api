@@ -71,7 +71,7 @@ const asyncHandler =
   (req, res, next) =>
     Promise.resolve(fn(req, res, next)).catch(next);
 
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 
 const swaggerSpec = swaggerJsdoc({
   definition: {
@@ -736,6 +736,10 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
     err.type === 'entity.parse.failed'
   ) {
     return res.status(400).json({ error: '잘못된 JSON 형식입니다' });
+  }
+  // 본문 크기 초과 (대용량 payload 방어) - 서버 에러 로그 없이 413 반환
+  if (typeof err === 'object' && err !== null && 'type' in err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: '요청 본문이 너무 큽니다' });
   }
   // 이메일 중복 (예상된 상황) — 평문 대신 마스킹하여 기록 후 409 반환
   if (err instanceof DatabaseError && err.code === '23505') {

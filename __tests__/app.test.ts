@@ -295,6 +295,14 @@ describe('POST /points/charge (충전 상한 검증)', () => {
   });
 });
 
+describe('본문 크기 제한 (413)', () => {
+  it('10kb를 초과하는 본문은 413으로 거부한다', async () => {
+    const bigPayload = { data: 'x'.repeat(11 * 1024) }; // 약 11KB
+    const res = await request(app).post('/signup').send(bigPayload);
+    expect(res.status).toBe(413);
+  });
+});
+
 afterAll(async () => {
   await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
 });

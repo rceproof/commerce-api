@@ -303,6 +303,45 @@ describe('본문 크기 제한 (413)', () => {
   });
 });
 
+describe('POST /points/charge (누적 보유 한도)', () => {
+  const user = { email: 'balance-limit@example.com', password: 'password123#' };
+  let token: string;
+  let userId: number;
+
+  beforeAll(async () => {
+    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
+    const res = await request(app).post('/signup').send(user);
+    userId = res.body.id;
+    token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+  });
+
+  beforeEach(async () => {
+    // 각 테스트 전 잔액 초기화 (누적 상태 처리)
+    await pool.query('UPDATE users SET points = 0 WHERE id = $1', [userId]);
+  });
+
+  it('누적 잔액이 200만을 넘기면 409 (150만 보유 + 60만 충전)', async () => {
+    await pool.query('UPDATE users SET points = 1500000 WHERE id = $1', [userId]);
+    const res = await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 600000 });
+
+    expect(res.status).toBe(409);
+  });
+
+  it('누적 잔액이 정확히 200만이면 허용 (150만 보유 + 50만 충전)', async () => {
+    await pool.query('UPDATE users SET points = 1500000 WHERE id = $1', [userId]);
+    const res = await request(app)
+      .post('/points/charge')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ amount: 500000 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.points).toBe(2000000);
+  });
+});
+
 afterAll(async () => {
   await pool.end(); // DB 커넥션 풀 정리 (안 하면 테스트가 안 끝나고 멈춰있음)
 });

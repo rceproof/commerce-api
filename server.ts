@@ -627,7 +627,7 @@ app.delete(
 app.post(
   '/points/charge',
   authenticateToken,
-  // 선불 포인트 보유 한도: 전자금융거래법 기명식 선불전자지급 수단 200만원 기준
+  // 1건 입력 방어: 1 이상의 정수 + 1회 과도 입력/오버플로우 방어 (보유 한도 자체는 아래 SQL에서 누적 검사)
   body('amount')
     .isInt({ min: 1, max: 2000000 })
     .withMessage('amount는 1 이상 200만 이하의 정수여야 합니다'),
@@ -644,14 +644,20 @@ app.post(
     //    결제 완료를 server-to-server로 검증한 뒤에만 적립해야 함
     //    (클라이언트의 "결제 완료"를 신뢰하지 않는 것이 핵심)
     // 원자적 증가: 현재 포인트에 amount 더함 (동시 충전도 안전하게 누적)
+    // 선불 포인트 보유 한도: 전자금융거래법 기명식 선불전자지급수단 200만원 기준
+    // 충전 후 잔액이 200만 이하일 때만 원자적으로 증가 (조회 후 UPDATE의 race condition 방어)
     const result = await pool.query(
-      'UPDATE users SET points = points + $1 WHERE id = $2 RETURNING points',
+      'UPDATE users SET points = points + $1 WHERE id = $2 AND points + $1 <= 2000000 RETURNING points',
       [amount, userId],
     );
 
     if (result.rows.length === 0) {
-      // 0건 = 해당 유저 없음 (인증됐으니 드물지만 방어)
-      return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+      // UPDATE 0건: 보유 한도 초과 또는 유저 없음 - 둘을 구분
+      const exists = await pool.query('SELECT 1 FROM users WHERE id = $1', [userId]);
+      if (exists.rows.length === 0) {
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
+      }
+      return res.status(409).json({ error: '충전 후 보유 한도(200만)를 초과했습니다' });
     }
 
     res.json({ points: result.rows[0].points });

@@ -125,15 +125,12 @@ describe('GET /orders (토큰 인증 가드)', () => {
 });
 
 describe('GET /orders (페이지네이션)', () => {
-  const user = { email: 'pagination-test@example.com', password: 'password123#' };
+  const user = { email: 'pagination-test@example.com' };
   let token: string;
 
   beforeAll(async () => {
-    //반복 가능하게: 이전 테스트 유저 정리
-    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
-    await request(app).post('/signup').send(user);
-    const res = await request(app).post('/login').send(user);
-    token = res.body.token;
+    const u = await createTestUser(user.email);
+    token = u.token;
 
     // 포인트 충전 후 주문 3개 생성 (페이지 나뉘는 걸 보려면 여러 건 필요)
     await request(app)
@@ -181,25 +178,18 @@ describe('GET /orders (페이지네이션)', () => {
 });
 
 describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
-  const userA = { email: 'idor-a@example.com', password: 'password123#' };
-  const userB = { email: 'idor-b@example.com', password: 'password123#' };
+  const userA = { email: 'idor-a@example.com' };
+  const userB = { email: 'idor-b@example.com' };
   let tokenA: string;
   let tokenB: string;
   let orderIdA: number;
 
   beforeAll(async () => {
     // 반복 가능하게: 이전 테스트 유저 정리
-    await pool.query('DELETE FROM users WHERE email IN ($1, $2)', [userA.email, userB.email]);
-
-    // A, B 가입
-    await request(app).post('/signup').send(userA);
-    await request(app).post('/signup').send(userB);
-
-    // A, B 로그인 -> 토큰 확보
-    const resA = await request(app).post('/login').send(userA);
-    tokenA = resA.body.token;
-    const resB = await request(app).post('/login').send(userB);
-    tokenB = resB.body.token;
+    const a = await createTestUser(userA.email);
+    const b = await createTestUser(userB.email);
+    tokenA = a.token;
+    tokenB = b.token;
 
     await request(app)
       .post('/points/charge')
@@ -213,7 +203,7 @@ describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
     orderIdA = orderRes.body.order_id;
   });
 
-  it('A와 B 모두 가입 후 로그인 되어 토큰을 받는다', () => {
+  it('A와 B 토큰이 준비된다', () => {
     expect(tokenA).toBeDefined();
     expect(tokenB).toBeDefined();
   });
@@ -237,15 +227,13 @@ describe('GET /orders/:id (IDOR 방어 주문 조회)', () => {
 });
 
 describe('DELETE /orders/:id (주문 취소, 환불)', () => {
-  const user = { email: 'cancel-test@example.com', password: 'password123#' };
+  const user = { email: 'cancel-test@example.com' };
   let token: string;
   let orderId: number;
 
   beforeAll(async () => {
-    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
-    await request(app).post('/signup').send(user);
-    const res = await request(app).post('/login').send(user);
-    token = res.body.token;
+    const u = await createTestUser(user.email);
+    token = u.token;
 
     await request(app)
       .post('/points/charge')
@@ -278,14 +266,13 @@ describe('DELETE /orders/:id (주문 취소, 환불)', () => {
 });
 
 describe('POST /points/charge (충전 상한 검증)', () => {
-  const user = { email: 'charge-limit@example.com', password: 'password123#' };
+  const user = { email: 'charge-limit@example.com' };
   let token: string;
 
   beforeAll(async () => {
     //반복 가능하게: 이전 테스트 유저 정리
-    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
-    const res = await request(app).post('/signup').send(user);
-    token = jwt.sign({ userId: res.body.id }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+    const u = await createTestUser(user.email);
+    token = u.token;
   });
 
   it('보유 한도(200만)를 초과하면 400', async () => {
@@ -317,15 +304,14 @@ describe('본문 크기 제한 (413)', () => {
 });
 
 describe('POST /points/charge (누적 보유 한도)', () => {
-  const user = { email: 'balance-limit@example.com', password: 'password123#' };
+  const user = { email: 'balance-limit@example.com' };
   let token: string;
   let userId: number;
 
   beforeAll(async () => {
-    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
-    const res = await request(app).post('/signup').send(user);
-    userId = res.body.id;
-    token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+    const u = await createTestUser(user.email);
+    userId = u.userId;
+    token = u.token;
   });
 
   beforeEach(async () => {

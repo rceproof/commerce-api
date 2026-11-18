@@ -56,6 +56,8 @@ const loginLimiter = rateLimit({
   message: { error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요' },
   standardHeaders: true,
   legacyHeaders: false,
+  // 테스트에선 기본 skip (블록마다 유저 생성 시 제한 누적 방지), 전용 테스트만 opt-in
+  skip: () => process.env.NODE_ENV === 'test' && process.env.RATE_LIMIT_IN_TEST !== 'true',
 });
 
 const signupLimiter = rateLimit({

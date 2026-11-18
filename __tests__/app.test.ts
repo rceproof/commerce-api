@@ -2,6 +2,19 @@ import request from 'supertest';
 import app from '../server';
 import pool from '../db';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+
+async function createTestUser(email: string, password = 'password123#') {
+  await pool.query('DELETE FROM users WHERE email = $1', [email]);
+  const hash = await bcrypt.hash(password, 12);
+  const { rows } = await pool.query(
+    'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id',
+    [email, hash],
+  );
+  const userId = rows[0].id;
+  const token = jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: '1h' });
+  return { userId, token };
+}
 
 describe('GET / (환영 응답)', () => {
   it('환영 메시지를 200으로 응답한다', async () => {
@@ -339,6 +352,28 @@ describe('POST /points/charge (누적 보유 한도)', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.points).toBe(2000000);
+  });
+});
+
+describe('POST /login (rate limiter)', () => {
+  const user = { email: 'ratelimit@example.com', password: 'password123#' };
+
+  beforeAll(async () => {
+    process.env.RATE_LIMIT_IN_TEST = 'true'; // 이 블록에서만 limiter 활성화
+    await pool.query('DELETE FROM users WHERE email = $1', [user.email]);
+    await request(app).post('/signup').send(user);
+  });
+
+  it('로그인 5회 초과(6회차)면 429', async () => {
+    for (let i = 0; i < 5; i++) {
+      await request(app).post('/login').send(user); // 1~5회: 통과
+    }
+    const res = await request(app).post('/login').send(user); // 6회차
+    expect(res.status).toBe(429);
+  });
+
+  afterAll(() => {
+    delete process.env.RATE_LIMIT_IN_TEST; // 다른 블록엔 영향 없게 복원
   });
 });
 

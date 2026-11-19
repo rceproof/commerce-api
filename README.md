@@ -141,6 +141,11 @@ npm run dev     # 개발 실행 (ts-node, 빌드 없이 바로)
   - 운영 경로 3건(`swagger-jsdoc` → `glob`/`minimatch`)은 기동 시 **고정 경로**만 읽어, 사용자 입력이 glob 패턴으로 유입되는 경로가 없음 → **HTTP 요청으로 도달 불가.**
   - `--force` 수정은 `swagger-jsdoc` 다운그레이드(6.3.0→6.2.8)·`jest` 구버전 회귀를 유발해 보류. 상위 패키지가 전이 의존성을 해소하면 상향, 사용 방식이 바뀌면 재평가.
 
+- **2026-11-18** — 운영 경로 취약점 해소 (`overrides`로 전이 의존성 고정)
+  - 11-13에서 도달 불가로 보류했던 운영 경로(`swagger-jsdoc` → `glob`/`minimatch`, moderate 2건)를, `swagger-jsdoc` 다운그레이드 없이 `package.json`의 `overrides`로 패치 버전 고정(`minimatch` 11.0.9, `glob` 14.0.6)해 해소.
+  - 결과: `npm audit --omit=dev` **운영 취약점 0건**, 테스트 24건 통과.
+  - 개발 의존성(`jest` → `picomatch` ReDoS, GHSA-fc5q-39xc-vjpf)은 **전 버전 영향·업스트림 패치 부재**이고 테스트 전용(`--omit=dev` 빌드라 운영 미포함)이라 수용. 패치 공개 시 상향.
+
 ### 배포 이미지 하드닝
 
 운영 배포(Docker)를 공격자 관점으로 점검해 **공격면과 노출 정보를 최소화**했다.

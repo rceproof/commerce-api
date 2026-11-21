@@ -20,6 +20,8 @@ declare global {
 
 const app = express();
 
+app.disable('x-powered-by'); // X-Powered-By: Express 헤더 제거 (프레임워크 노출 차단)
+
 // nginx 리버스 프록시 뒤 - X-Forwarded-For로 실제 클라이언트 IP 신뢰
 // 설정 안 하면 모든 요청이 nginx IP로 집계 → rate limiter가 IP별로 작동 못 함
 app.set('trust proxy', 1);

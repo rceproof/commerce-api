@@ -19,6 +19,7 @@ declare global {
 }
 
 const app = express();
+app.set('trust proxy', 1); // nginx 리버스 프록시 뒤 - X-Forwarded-For로 실제 클라이언트 IP 신뢰
 
 const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);

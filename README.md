@@ -5,6 +5,7 @@
 
 ## 기술 스택
 
+- TypeScript
 - Node.js
 - Express
 - PostgreSQL

@@ -36,3 +36,17 @@ CREATE INDEX orders_user_id_idx ON orders (user_id);
 INSERT INTO products (name, price) VALUES
   ('노트북', 1200000),
   ('마우스', 25000);
+
+  -- 결제 (한 주문에 결제 시도가 여러 번 생길 수 있어 orders와 분리)
+CREATE TABLE payments (
+  id SERIAL PRIMARY KEY,
+  order_id INTEGER NOT NULL REFERENCES orders(order_id),  -- 어느 주문의 결제인지
+  order_uid VARCHAR(64) NOT NULL UNIQUE,     -- 토스에 보내는 주문번호 (추측 불가 랜덤, 앱에서 생성)
+  amount INTEGER NOT NULL,                    -- 결제 금액 (승인 때 orders.total·토스 금액과 대조)
+  payment_key VARCHAR(200) UNIQUE,           -- 토스 승인 후 받는 결제 키 (멱등성 키)
+  status VARCHAR(20) NOT NULL DEFAULT 'READY', -- READY → DONE / CANCELED / FAILED
+  created_at TIMESTAMP DEFAULT now(),
+  approved_at TIMESTAMP
+);
+
+CREATE INDEX payments_order_id_idx ON payments (order_id);

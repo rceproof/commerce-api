@@ -9,6 +9,7 @@ import ms from 'ms';
 import { body, param, query, validationResult } from 'express-validator';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
+import { randomUUID } from 'crypto';
 
 declare global {
   namespace Express {
@@ -528,6 +529,82 @@ app.post(
     } finally {
       client.release();
     }
+  }),
+);
+
+/**
+ * @swagger
+ * /payments:
+ *  post:
+ *    summary: 결제 시작 (토스 주문번호 발급)
+ *    tags: [결제]
+ *    security:
+ *      - bearerAuth: []
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            required: [orderId]
+ *            properties:
+ *              orderId:
+ *                type: integer
+ *                example: 1
+ *    responses:
+ *      201:
+ *        description: 결제 생성 성공 (order_uid, amount 반환 - 프론트엔드 토스 SDK로 전달)
+ *      400:
+ *        description: 입력값 검증 실패
+ *      404:
+ *        description: 주문 없음 (타인 주문 포함 - IDOR 방어)
+ *      409:
+ *        description: 이미 결제 완료된 주문
+ */
+
+app.post(
+  '/payments',
+  authenticateToken,
+  body('orderId').isInt({ min: 1 }).withMessage('orderId는 1 이상의 정수여야 합니다'),
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { orderId } = req.body;
+    const userId = req.user.userId;
+
+    // 주문 조회 (IDOR 방어: 본인 주문만). 결제 금액은 오직 서버의 orders.total에서만 가져옴
+    // - 클라이언트가 보낸 금액은 절대 신뢰하지 않음 (위변조 방어의 출발점)
+    const orderResult = await pool.query(
+      'SELECT total FROM orders WHERE order_id = $1 AND user_id = $2',
+      [orderId, userId],
+    );
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: '주문을 찾을 수 없습니다' });
+    }
+    const amount = orderResult.rows[0].total;
+
+    // 이미 결제 완료(DONE) 된 주문이면 중복 결제 차단
+    const paid = await pool.query(
+      "SELECT 1 FROM payments WHERE order_id = $1 AND status = 'DONE'",
+      [orderId],
+    );
+    if (paid.rows.length > 0) {
+      return res.status(409).json({ error: '이미 결제가 완료된 주문입니다' });
+    }
+
+    // 결제 시도마다 추측 불가한 토스 주문번호 발급 (UUID = 36자, VARCHAR(64)에 들어감)
+    const orderUid = randomUUID();
+
+    const result = await pool.query(
+      "INSERT INTO payments (order_id, order_uid, amount, status) VALUES ($1, $2, $3, 'READY') RETURNING id, order_uid, amount, status",
+      [orderId, orderUid, amount],
+    );
+
+    // 프론트엔드 토스 SDK에 넘길 값: order_uid(토스 orderId) + amount
+    res.status(201).json(result.rows[0]);
   }),
 );
 

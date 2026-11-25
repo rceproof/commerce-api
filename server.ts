@@ -28,7 +28,14 @@ app.disable('x-powered-by'); // X-Powered-By: Express 헤더 제거 (프레임�
 app.set('trust proxy', 1);
 
 // 필수 환경변수 검증 (없으면 즉시 종료 - fail fast)
-const REQUIRED_ENV = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const REQUIRED_ENV = [
+  'JWT_SECRET',
+  'DB_HOST',
+  'DB_USER',
+  'DB_PASSWORD',
+  'DB_NAME',
+  'TOSS_SECRET_KEY',
+];
 const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missingEnv.length > 0) {
   console.error(`필수 환경변수가 설정되지 않았습니다: ${missingEnv.join(', ')}`);
@@ -605,6 +612,126 @@ app.post(
 
     // 프론트엔드 토스 SDK에 넘길 값: order_uid(토스 orderId) + amount
     res.status(201).json(result.rows[0]);
+  }),
+);
+
+/**
+ * @swagger
+ * /payments/confirm:
+ *  post:
+ *    summary: 결제 승인 (금액 대조 + 토스 최종 승인)
+ *    tags: [결제]
+ *    security:
+ *      - bearerAuth: []
+ *    requestBody:
+ *      required: true
+ *      content:
+ *        application/json:
+ *          schema:
+ *            type: object
+ *            required: [paymentKey, orderId, amount]
+ *            properties:
+ *              paymentKey:
+ *                type: string
+ *              orderId:
+ *                type: string
+ *                description: 결제 시작 때 발급한 order_uid (토스가 orderId라 부름)
+ *              amount:
+ *                type: integer
+ *    responses:
+ *      200:
+ *        description: 결제 승인 성공
+ *      400:
+ *        description: 입력 검증 실패 또는 금액 불일치
+ *      404:
+ *        description: 결제 정보 없음
+ *      409:
+ *        description: 이미 처리된 결제
+ *      502:
+ *        description: 토스 승인 거부
+ */
+
+app.post(
+  '/payments/confirm',
+  authenticateToken,
+  body('paymentKey').isString().notEmpty().withMessage('paymentKey는 필수입니다'),
+  body('orderId').isString().notEmpty().withMessage('orderId는 필수입니다'), // 토스 orderId = payments.order_uid
+  body('amount').isInt({ min: 1 }).withMessage('amount는 1 이상의 정수여야 합니다'),
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { paymentKey, orderId, amount } = req.body;
+    const userId = req.user.userId;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // 결제 행 조회 + 잠금 (IDOR: orders와 조인해 본인 주문의 결제만)
+      // FOR UPDATE OF p: 동시에 들어온 confirm 요청을 이 행에서 직렬화 + 중복 승인 방어
+      const payRes = await client.query(
+        `SELECT p.id, p.amount, p.status
+          FROM payments p
+          JOIN orders o ON o.order_id = p.order_id
+         WHERE p.order_uid = $1 AND o.user_id = $2
+         FOR UPDATE OF p`,
+        [orderId, userId],
+      );
+      if (payRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: '결제 정보를 찾을 수 없습니다' });
+      }
+      const payment = payRes.rows[0];
+
+      // 멱등성 : 이미 READY가 아니면(DONE/FAILED) 토스 재호출 없이 종료
+      if (payment.status !== 'READY') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: '이미 처리된 결제입니다' });
+      }
+
+      // 금액 대조 (위변조 방어): 클라이언트가 보낸 금액 ≠ 서버 저장 금액 → 거부 (토스 호출 안 함)
+      if (Number(amount) !== payment.amount) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: '결제 금액이 일치하지 않습니다' });
+      }
+
+      // 토스 최종 승인 (server-to-server, Secret Key). 전송 금액은 payments.amount — 클라이언트 전달값 대신 DB값으로 승인
+      const tossRes = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
+        method: 'POST',
+        headers: {
+          // Basic 인증: base64(secretKey + ":") - 비밀번호 자리는 비움
+          Authorization:
+            'Basic ' + Buffer.from(process.env.TOSS_SECRET_KEY! + ':').toString('base64'),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ paymentKey, orderId, amount: payment.amount }),
+      });
+
+      if (!tossRes.ok) {
+        // 토스가 승인 거부 → 이 시도는 실패로 기록하고 종료
+        const errBody = await tossRes.json().catch(() => ({}));
+        await client.query("UPDATE payments SET status = 'FAILED' WHERE id = $1", [payment.id]);
+        await client.query('COMMIT');
+        return res.status(502).json({ error: '결제 승인 실패', detail: errBody.message });
+      }
+
+      // 승인 성공 → DONE + payment_key(멱등성 키) + 승인 시각 기록
+      await client.query(
+        "UPDATE payments SET status = 'DONE', payment_key = $1, approved_at = now() WHERE id = $2",
+        [paymentKey, payment.id],
+      );
+      await client.query('COMMIT');
+
+      res.json({ status: 'DONE', orderId, amount: payment.amount });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   }),
 );
 

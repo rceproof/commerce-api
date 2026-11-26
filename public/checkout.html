@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>결제 테스트</title>
+    <!-- 토스 V2 SDK -->
+    <script src="https://js.tosspayments.com/v2/standard"></script>
+  </head>
+  <body>
+    <h1>결제 테스트</h1>
+
+    <!-- 준비 단계 입력 -->
+    <p>
+      <label>JWT 토큰: <input id="token" size="50" placeholder="Bearer 뒤의 토큰만" /></label>
+    </p>
+    <p>
+      <label>주문번호(order_id): <input id="orderId" type="number" value="500092" /></label>
+    </p>
+    <button id="prepare-btn">결제 준비</button>
+
+    <hr />
+
+    <!-- 토스 위젯이 그려질 자리 -->
+    <div id="payment-method"></div>
+    <div id="agreement"></div>
+    <button id="pay-btn" disabled>결제하기</button>
+
+    <script>
+      const clientKey = 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm'; // 공개용 클라이언트 키(테스트)
+      const tossPayments = TossPayments(clientKey);
+      const widgets = tossPayments.widgets({ customerKey: TossPayments.ANONYMOUS }); // 비회원 결제
+
+      let orderUid = null;
+
+      // ① 결제 준비: 백엔드에 결제 생성 요청 → order_uid, amount 받기
+      document.getElementById('prepare-btn').addEventListener('click', async () => {
+        const token = document.getElementById('token').value.trim();
+        const orderId = Number(document.getElementById('orderId').value);
+
+        const res = await fetch('/payments', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert('결제 준비 실패: ' + JSON.stringify(data));
+          return;
+        }
+
+        orderUid = data.order_uid;
+        localStorage.setItem('token', token); // success.html에서 승인할 때 쓸 토큰 저장
+
+        // ② 위젯 렌더: 금액 설정 → 결제수단 → 약관 (순서 중요)
+        await widgets.setAmount({ value: data.amount, currency: 'KRW' });
+        await widgets.renderPaymentMethods({ selector: '#payment-method', variantKey: 'DEFAULT' });
+        await widgets.renderAgreement({ selector: '#agreement' });
+
+        document.getElementById('pay-btn').disabled = false;
+      });
+
+      // ③ 결제하기: 토스 결제창 호출
+      document.getElementById('pay-btn').addEventListener('click', async () => {
+        await widgets.requestPayment({
+          orderId: orderUid, // 결제 준비에서 받은 order_uid (토스 규약상 orderId로 전달)
+          orderName: '테스트 상품',
+          successUrl: window.location.origin + '/success.html',
+          failUrl: window.location.origin + '/fail.html',
+        });
+      });
+    </script>
+  </body>
+</html>

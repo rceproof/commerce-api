@@ -89,6 +89,7 @@ const asyncHandler =
     Promise.resolve(fn(req, res, next)).catch(next);
 
 app.use(express.json({ limit: '10kb' }));
+app.use(express.static('public'));
 
 const swaggerSpec = swaggerJsdoc({
   definition: {

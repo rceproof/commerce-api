@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>결제 승인</title>
+  </head>
+  <body>
+    <h1>결제 승인 중...</h1>
+    <pre id="result">잠시만 기다려주세요.</pre>
+
+    <script>
+      (async () => {
+        // ① 토스가 successUrl에 붙여준 쿼리값 꺼내기
+        const params = new URLSearchParams(window.location.search);
+        const paymentKey = params.get('paymentKey');
+        const orderId = params.get('orderId'); // = order_uid
+        const amount = Number(params.get('amount'));
+
+        // ② checkout에서 저장해둔 토큰
+        const token = localStorage.getItem('token');
+
+        // ③ 백엔드에 최종 승인 요청
+        const res = await fetch('/payments/confirm', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentKey, orderId, amount }),
+        });
+        const data = await res.json();
+
+        // ④ 결과 표시
+        const el = document.getElementById('result');
+        if (res.ok) {
+          document.querySelector('h1').textContent = '✅ 결제 완료';
+          el.textContent = JSON.stringify(data, null, 2);
+        } else {
+          document.querySelector('h1').textContent = '❌ 승인 실패 (' + res.status + ')';
+          el.textContent = JSON.stringifiy(data, null, 2);
+        }
+      })();
+    </script>
+  </body>
+</html>

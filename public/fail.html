@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>결제 실패</title>
+  </head>
+  <body>
+    <h1>❌ 결제 실패</h1>
+    <pre id="result"></pre>
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      document.getElementById('result').textContent =
+        'code: ' + params.get('code') + '\nmessage: ' + params.get('message');
+    </script>
+  </body>
+</html>

@@ -10,6 +10,7 @@ import { body, param, query, validationResult } from 'express-validator';
 import swaggerUi from 'swagger-ui-express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import { randomUUID } from 'crypto';
+import * as tossClient from './tossClient';
 
 declare global {
   namespace Express {
@@ -699,24 +700,18 @@ app.post(
         return res.status(400).json({ error: '결제 금액이 일치하지 않습니다' });
       }
 
-      // 토스 최종 승인 (server-to-server, Secret Key). 전송 금액은 payments.amount — 클라이언트 전달값 대신 DB값으로 승인
-      const tossRes = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
-        method: 'POST',
-        headers: {
-          // Basic 인증: base64(secretKey + ":") - 비밀번호 자리는 비움
-          Authorization:
-            'Basic ' + Buffer.from(process.env.TOSS_SECRET_KEY! + ':').toString('base64'),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ paymentKey, orderId, amount: payment.amount }),
+      // 토스 최종 승인 (server-to-server). 호출 세부는 tossClient로 격리
+      const tossResult = await tossClient.confirmPayment({
+        paymentKey,
+        orderId,
+        amount: payment.amount, // 클라이언트값 아닌 DB값으로 승인
       });
 
-      if (!tossRes.ok) {
+      if (!tossResult.ok) {
         // 토스가 승인 거부 → 이 시도는 실패로 기록하고 종료
-        const errBody = await tossRes.json().catch(() => ({}));
         await client.query("UPDATE payments SET status = 'FAILED' WHERE id = $1", [payment.id]);
         await client.query('COMMIT');
-        return res.status(502).json({ error: '결제 승인 실패', detail: errBody.message });
+        return res.status(502).json({ error: '결제 승인 실패', detail: tossResult.message });
       }
 
       // 승인 성공 → DONE + payment_key(멱등성 키) + 승인 시각 기록
